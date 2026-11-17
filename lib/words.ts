@@ -1,4 +1,5 @@
 import { randomInt } from 'crypto';
+import { WORD_CATEGORIES } from '@/lib/word-categories';
 import type { WordCategory } from '@/lib/word-categories';
 
 type Pair = {
@@ -139,6 +140,35 @@ export const WORD_PAIRS: Pair[] = [
 
 export type PickedPair = { civilian: string; liar: string; category: string; level: string };
 
+const EVERYDAY_PACK_BY_CATEGORY: Record<string, WordCategory> = {
+  'Food & Drink': 'food_drink',
+  Animals: 'nature_animals',
+  Nature: 'nature_animals',
+  Places: 'places_travel',
+  Travel: 'places_travel',
+  Transport: 'transport',
+  Objects: 'home_objects',
+  Home: 'home_objects',
+  Sports: 'sports_outdoors',
+  Outdoors: 'sports_outdoors',
+  People: 'people_work',
+  Work: 'people_work',
+  Entertainment: 'entertainment_events',
+  Events: 'entertainment_events',
+  Music: 'entertainment_events',
+  Apps: 'technology',
+  Tech: 'technology',
+  Style: 'style_clothing',
+  Clothing: 'style_clothing',
+  Ideas: 'ideas_lifestyle',
+  Feelings: 'ideas_lifestyle',
+  Health: 'ideas_lifestyle',
+};
+
+const EVERYDAY_PACKS = new Set<WordCategory>(
+  WORD_CATEGORIES.filter((category) => category.group === 'everyday').map((category) => category.id),
+);
+
 /**
  * Picks from the selected word packs, skipping words already used in this room
  * (falls back to the selected pool once everything has been played).
@@ -146,7 +176,10 @@ export type PickedPair = { civilian: string; liar: string; category: string; lev
  */
 export function pickPair(categories: WordCategory[], used: Set<string>): PickedPair {
   const selected = new Set(categories);
-  const pool = WORD_PAIRS.filter((p) => selected.has(p.pack ?? 'everyday'));
+  const pool = WORD_PAIRS.filter((pair) => {
+    const pack = pair.pack ?? EVERYDAY_PACK_BY_CATEGORY[pair.category] ?? 'everyday';
+    return selected.has(pack) || (selected.has('everyday') && (pack === 'everyday' || EVERYDAY_PACKS.has(pack)));
+  });
   let fresh = pool.filter((p) => !used.has(p.a) && !used.has(p.b));
   if (fresh.length === 0) fresh = pool;
   const pair = fresh[randomInt(fresh.length)];

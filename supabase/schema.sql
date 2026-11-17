@@ -8,8 +8,8 @@ create table if not exists public.rooms (
  max_players int not null default 16 check (max_players between 3 and 30),
  imposter_count int not null default 1 check (imposter_count between 1 and 3),
  difficulty text not null default 'mixed' check (difficulty in ('mixed','easy','medium','hard')),
- word_categories text[] not null default array['everyday']::text[]
-   check (cardinality(word_categories) > 0 and word_categories <@ array['everyday','bible_characters','bible_stories','bible_places','bible_objects']::text[]),
+ word_categories text[] not null default array['food_drink','nature_animals','places_travel','transport','home_objects','sports_outdoors','people_work','entertainment_events','technology','style_clothing','ideas_lifestyle']::text[]
+   check (cardinality(word_categories) > 0 and word_categories <@ array['everyday','food_drink','nature_animals','places_travel','transport','home_objects','sports_outdoors','people_work','entertainment_events','technology','style_clothing','ideas_lifestyle','bible_characters','bible_stories','bible_places','bible_objects']::text[]),
  liars_know boolean not null default true,
  status text not null default 'lobby' check (status in ('lobby','clues','voting','revealed')),
  round int not null default 0, word_a text, word_b text, host_token_hash text not null,

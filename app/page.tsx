@@ -7,6 +7,11 @@ import { api, loadName, saveName, saveSession } from '@/lib/api';
 import { minimumPlayers } from '@/lib/rules';
 import { DEFAULT_WORD_CATEGORIES, WORD_CATEGORIES, type WordCategory } from '@/lib/word-categories';
 
+const CATEGORY_GROUPS = [
+  { id: 'everyday', label: 'Everyday topics' },
+  { id: 'bible', label: 'Bible topics' },
+] as const;
+
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<'individual' | 'teams'>('individual');
@@ -28,6 +33,15 @@ export default function Home() {
     setWordCategories((selected) => selected.includes(category)
       ? selected.filter((item) => item !== category)
       : [...selected, category]);
+  }
+
+  function toggleCategoryGroup(group: (typeof CATEGORY_GROUPS)[number]['id']) {
+    const categoryIds = WORD_CATEGORIES.filter((category) => category.group === group).map((category) => category.id);
+    const categorySet = new Set<WordCategory>(categoryIds);
+    const allSelected = categoryIds.every((category) => wordCategories.includes(category));
+    setWordCategories((selected) => allSelected
+      ? selected.filter((category) => !categorySet.has(category))
+      : [...new Set([...selected, ...categoryIds])]);
   }
 
   useEffect(() => {
@@ -69,10 +83,29 @@ export default function Home() {
             <div className="eyebrow mb-2">Host a game</div>
             <h2 className="text-2xl font-bold mb-5">Create a room</h2>
 
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              <button onClick={() => setMode('individual')} className={`btn-ghost ${mode === 'individual' ? 'on' : ''}`}>Individual</button>
-              <button onClick={() => setMode('teams')} className={`btn-ghost ${mode === 'teams' ? 'on' : ''}`}>2 Teams</button>
-            </div>
+            <fieldset className="mb-5">
+              <legend className="text-sm muted">Choose a game format</legend>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  type="button"
+                  aria-pressed={mode === 'individual'}
+                  onClick={() => setMode('individual')}
+                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${mode === 'individual' ? 'on' : ''}`}
+                >
+                  <span className="font-bold">Free-for-all</span>
+                  <span className="muted text-xs leading-relaxed">Everyone plays individually.</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={mode === 'teams'}
+                  onClick={() => setMode('teams')}
+                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${mode === 'teams' ? 'on' : ''}`}
+                >
+                  <span className="font-bold">Team vs team</span>
+                  <span className="muted text-xs leading-relaxed">Players are balanced across two teams.</span>
+                </button>
+              </div>
+            </fieldset>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
@@ -101,20 +134,37 @@ export default function Home() {
             </div>
 
             <fieldset className="mb-5">
-              <legend className="text-sm muted">Word categories</legend>
-              <p className="muted text-xs mt-1">Selected categories are mixed together.</p>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {WORD_CATEGORIES.map(({ id, label }) => (
-                  <label key={id} className="btn-ghost flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-[#ff3d5a]"
-                      checked={wordCategories.includes(id)}
-                      onChange={() => toggleWordCategory(id)}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
+              <legend className="text-sm muted">Choose word categories</legend>
+              <p className="muted text-xs mt-1">Words are drawn from all selected topics.</p>
+              <div className="space-y-3 mt-3">
+                {CATEGORY_GROUPS.map(({ id: group, label }) => {
+                  const categories = WORD_CATEGORIES.filter((category) => category.group === group);
+                  const selectedCount = categories.filter((category) => wordCategories.includes(category.id)).length;
+                  const allSelected = selectedCount === categories.length;
+                  return (
+                    <section key={group} className="rounded-2xl border border-[#272a40] bg-[#0b0c15] p-3">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <h3 className="text-sm font-bold">{label}<span className="muted font-normal ml-2">{selectedCount}/{categories.length}</span></h3>
+                        <button type="button" className="text-xs text-[#ff8a9b] hover:text-white" onClick={() => toggleCategoryGroup(group)}>
+                          {allSelected ? 'Clear all' : 'Select all'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {categories.map(({ id, label: categoryLabel }) => (
+                          <label key={id} className={`btn-ghost flex items-center gap-2 !px-3 !py-2 text-xs cursor-pointer ${wordCategories.includes(id) ? 'on' : ''}`}>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 shrink-0 accent-[#ff3d5a]"
+                              checked={wordCategories.includes(id)}
+                              onChange={() => toggleWordCategory(id)}
+                            />
+                            <span>{categoryLabel}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
               {!validWordCategories && <p role="alert" className="text-red-300 text-xs mt-2">Select at least one word category.</p>}
             </fieldset>

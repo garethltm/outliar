@@ -11,7 +11,7 @@ Set these for Production (and Preview if you intend to test preview deployments)
 After changing environment variables, redeploy the project.
 
 **Database:** fresh Supabase project → run `supabase/schema.sql`.
-Existing UNDERCOVER database → run `supabase/migration-v2.sql` (adds the original outLIAR room settings), then `supabase/migration-v3.sql` and `supabase/migration-v4.sql`.
-Existing outLIAR database → run `supabase/migration-v4.sql` to add word-category selection.
+Existing UNDERCOVER database → run `supabase/migration-v2.sql`, `supabase/migration-v3.sql`, and `supabase/migration-v5.sql`.
+Existing outLIAR database → run `supabase/migration-v5.sql` to update the selectable word topics.
 
 Produced by @garethltm.
