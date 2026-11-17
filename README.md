@@ -5,7 +5,7 @@ Produced by **@garethltm**.
 
 Everyone gets a secret word on their phone. Most players share the *same* word — the liar gets a *similar but different* one. Give clues, listen for the one that doesn't fit, then vote.
 
-Built with Next.js 14 + Supabase, deployable to Vercel. No app download: players join by QR code or 6-digit room code.
+Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players join by QR code or 6-digit room code.
 
 ## How a round works
 1. Host creates a room (Individual or 2 Teams, player limit, liars, word difficulty, optional **Blind mode**).
