@@ -29,6 +29,7 @@ export default function Room() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState('');
+  const [guess, setGuess] = useState('');
   const [peek, setPeek] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hostName, setHostName] = useState('');
@@ -65,7 +66,7 @@ export default function Room() {
 
   // Never carry a revealed word (or a half-picked vote) into the next phase/round.
   const round = state?.room.round; const status = state?.room.status;
-  useEffect(() => { setPeek(false); setTarget(''); }, [round, status]);
+  useEffect(() => { setPeek(false); setTarget(''); setGuess(''); }, [round, status]);
 
   const order = useMemo(() => (state ? speakingOrder(state.players, code + ':' + state.room.round) : []), [state?.players, state?.room.round, code]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -134,6 +135,7 @@ export default function Room() {
   const gained: Record<string, number> = {};
   (state.result?.points || []).forEach((p: any) => { gained[p.id] = p.points; });
   const result = state.result;
+  const guessPending = result?.guessStatus === 'pending' || result?.guessStatus === 'submitted';
 
   return (
     <main className="min-h-screen px-4 py-6 sm:px-5 sm:py-8">
@@ -318,16 +320,55 @@ export default function Room() {
                     : result.caught ? 'The most votes landed on a liar.' : 'The group voted for an innocent player.'}
                 </p>
 
-                <div className="grid grid-cols-1 gap-2 mt-5 sm:grid-cols-2">
-                  <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-truth font-bold">TRUTH-TELLERS HAD</div><div className="mt-1 break-words font-black">{result.civilianWord}</div></div>
-                  <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-liar font-bold">LIAR{result.liars.length > 1 ? 'S' : ''} HAD</div><div className="mt-1 break-words font-black">{result.liarWord}</div></div>
-                </div>
-
                 <div className="mt-4 space-y-2">
                   {result.liars.map((p: any) => (
                     <div key={p.id} className="break-words bg-liar/10 border border-liar/40 p-3 rounded-xl text-sm">🤥 <b>{p.name}</b> was a liar</div>
                   ))}
                 </div>
+
+                {guessPending && (
+                  <div className="chip mt-5 !p-4">
+                    <div className="eyebrow mb-2">Caught liar&apos;s word guess</div>
+                    {result.guessStatus === 'submitted' && state.isHost ? (
+                      <>
+                        <p className="break-words text-sm">Guess: <b>{result.guessText}</b></p>
+                        <p className="muted mt-2 text-sm">Shared word: <b className="text-white">{result.civilianWord}</b></p>
+                        <div className="grid gap-2 mt-4 sm:grid-cols-2">
+                          <button className="btn" disabled={busy} onClick={() => act('judge-guess', { correct: true })}>Correct — liar gets +3</button>
+                          <button className="btn-ghost" disabled={busy} onClick={() => act('judge-guess', { correct: false })}>Incorrect — normal points</button>
+                        </div>
+                      </>
+                    ) : result.guessStatus === 'pending' && state.playerId === result.caughtLiarId ? (
+                      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); void act('submit-guess', { guess }); }}>
+                        <input className="field min-w-0" maxLength={100} placeholder="What was the shared word?" value={guess} onChange={(e) => setGuess(e.target.value)} />
+                        <button className="btn-ghost whitespace-nowrap" disabled={busy || !guess.trim()}>Submit guess</button>
+                      </form>
+                    ) : result.guessStatus === 'pending' && state.isHost ? (
+                      <>
+                        <p className="muted text-sm">Waiting for the caught liar to submit a guess.</p>
+                        <button className="btn-ghost mt-3 w-full" disabled={busy} onClick={() => act('judge-guess', { correct: false })}>No guess received? Mark incorrect</button>
+                      </>
+                    ) : result.guessStatus === 'submitted' && state.playerId === result.caughtLiarId ? (
+                      <p className="muted text-sm">Your guess has been submitted. Waiting for the host to judge it.</p>
+                    ) : (
+                      <p className="muted text-sm">{result.guessStatus === 'pending' ? 'The caught liar is making a guess.' : 'The host is checking the guess.'}</p>
+                    )}
+                  </div>
+                )}
+
+                {!guessPending && (
+                  <div className="grid grid-cols-1 gap-2 mt-5 sm:grid-cols-2">
+                    <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-truth font-bold">TRUTH-TELLERS HAD</div><div className="mt-1 break-words font-black">{result.civilianWord}</div></div>
+                    <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-liar font-bold">LIAR{result.liars.length > 1 ? 'S' : ''} HAD</div><div className="mt-1 break-words font-black">{result.liarWord}</div></div>
+                  </div>
+                )}
+
+                {result.guessStatus === 'judged' && (
+                  <p className={`mt-4 text-sm font-bold ${result.guessCorrect ? 'text-truth' : 'text-liar'}`}>
+                    {result.guessText ? <>Guess: “{result.guessText}” — </> : 'No guess — '}
+                    {result.guessCorrect ? 'Correct! The caught liar gets 3 points; no one else scores this round.' : 'Incorrect. Normal round points apply.'}
+                  </p>
+                )}
 
                 {result.tally.length > 0 && (
                   <div className="mt-5">
@@ -343,13 +384,15 @@ export default function Room() {
                   </div>
                 )}
 
-                <div className="mt-6">
-                  <div className="eyebrow mb-3">Scoreboard</div>
-                  <Scoreboard rows={state.scoreboard} teamScores={state.teamScores} mode={room.mode} meId={state.playerId} gained={gained} />
-                </div>
+                {!guessPending && (
+                  <div className="mt-6">
+                    <div className="eyebrow mb-3">Scoreboard</div>
+                    <Scoreboard rows={state.scoreboard} teamScores={state.teamScores} mode={room.mode} meId={state.playerId} gained={gained} />
+                  </div>
+                )}
 
                 {state.isHost
-                  ? <button className="btn w-full mt-6" disabled={busy} onClick={() => act('next')}>Back to lobby / next round</button>
+                  ? <button className="btn w-full mt-6" disabled={busy || guessPending} onClick={() => act('next')}>Back to lobby / next round</button>
                   : <p className="muted text-sm mt-6">Waiting for the host to start the next round…</p>}
               </>
             )}

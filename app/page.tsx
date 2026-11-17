@@ -203,7 +203,7 @@ export default function Home() {
                 <li>Take turns giving one short clue about your word. Never say the word itself.</li>
                 <li>Listen for the clue that doesn&apos;t quite fit, then vote for who you think the liar is.</li>
                 <li>Most votes wins the round. A tie means the liar escapes.</li>
-                <li><b className="text-white">Points:</b> truth-tellers +2 for catching a liar (+1 for voting right). Liars +3 for escaping.</li>
+                <li><b className="text-white">Points:</b> truth-tellers +2 for catching a liar (+1 for voting right). If caught, a liar can guess the shared word: the host judges it, and a correct guess gives the liar +3 while everyone else scores 0. A wrong guess keeps the normal points. Liars get +3 for escaping.</li>
               </ol>
             </details>
           </section>

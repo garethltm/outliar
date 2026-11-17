@@ -146,6 +146,15 @@ export async function POST(req: NextRequest) {
       if (room.status === 'revealed') {
         const { data: r } = await db.from('round_results').select('result').eq('room_id', room.id).eq('round', room.round).maybeSingle();
         result = r?.result ?? null;
+        if (result?.guessStatus === 'pending' || result?.guessStatus === 'submitted') {
+          result = {
+            ...result,
+            civilianWord: isHost && result.guessStatus === 'submitted' ? result.civilianWord : null,
+            liarWord: null,
+            guessText: isHost || player?.id === result.caughtLiarId ? result.guessText : null,
+            points: [],
+          };
+        }
       }
 
       // Running scoreboard, built from stored per-round points.
@@ -153,7 +162,7 @@ export async function POST(req: NextRequest) {
       if (room.round > 0) {
         const { data: rows } = await db.from('round_results').select('result').eq('room_id', room.id);
         const totals: Record<string, { id: string; name: string; team: string | null; points: number }> = {};
-        (rows || []).forEach((r: any) => (r.result?.points || []).forEach((p: any) => {
+        (rows || []).filter((r: any) => r.result?.guessStatus !== 'pending' && r.result?.guessStatus !== 'submitted').forEach((r: any) => (r.result?.points || []).forEach((p: any) => {
           const t = totals[p.id] || (totals[p.id] = { id: p.id, name: p.name, team: p.team ?? null, points: 0 });
           t.points += p.points;
           if (p.team === 'A') teamScores.A += p.points;
@@ -184,8 +193,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === 'submit-guess') {
+      if (room.status !== 'revealed') return fail('Word guesses are only accepted after the reveal.');
+      if (!player) return fail('Only the caught player can submit a word guess.', 403);
+      const guess = String(data.guess ?? '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim();
+      if (!guess || guess.length > 100) return fail('Enter a guess of 1 to 100 characters.');
+
+      const { data: current, error: readError } = await db.from('round_results').select('result').eq('room_id', room.id).eq('round', room.round).maybeSingle();
+      if (readError) throw readError;
+      if (current?.result?.guessStatus !== 'pending' || current.result.caughtLiarId !== player.id) {
+        return fail('This word guess has already been submitted or is not for you.');
+      }
+
+      const { data: updated, error: updateError } = await db
+        .from('round_results')
+        .update({ result: { ...current.result, guessStatus: 'submitted', guessText: guess } })
+        .eq('room_id', room.id)
+        .eq('round', room.round)
+        .eq('result->>guessStatus', 'pending')
+        .select('round');
+      if (updateError) throw updateError;
+      if (!updated?.length) return fail('This word guess has already been submitted.');
+      return NextResponse.json({ ok: true });
+    }
+
     // ───────────────────────── host-only ─────────────────────────
     if (!isHost) return fail('Only the host can perform this action.', 403);
+
+    if (action === 'judge-guess') {
+      if (room.status !== 'revealed') return fail('Word guesses can only be judged after the reveal.');
+      if (typeof data.correct !== 'boolean') return fail('Choose whether the guess is correct or incorrect.');
+
+      const { data: current, error: readError } = await db.from('round_results').select('result').eq('room_id', room.id).eq('round', room.round).maybeSingle();
+      if (readError) throw readError;
+      if (!current || !['pending', 'submitted'].includes(current.result?.guessStatus)) return fail('This word guess has already been judged.');
+      if (data.correct && current.result.guessStatus !== 'submitted') return fail('The caught player must submit a guess before it can be marked correct.');
+
+      const result = { ...current.result, guessStatus: 'judged', guessCorrect: data.correct };
+      if (data.correct) {
+        result.points = (current.result.points || []).map((p: any) => ({
+          ...p,
+          points: p.id === current.result.caughtLiarId ? 3 : 0,
+          note: p.id === current.result.caughtLiarId ? 'Correctly guessed the word' : '',
+        }));
+      }
+
+      const { data: updated, error: updateError } = await db
+        .from('round_results')
+        .update({ result })
+        .eq('room_id', room.id)
+        .eq('round', room.round)
+        .eq('result->>guessStatus', current.result.guessStatus)
+        .select('round');
+      if (updateError) throw updateError;
+      if (!updated?.length) return fail('This word guess has already been judged.');
+      return NextResponse.json({ ok: true });
+    }
 
     if (action === 'host-join') {
       if (room.status !== 'lobby') return fail('You can only join as a player while in the lobby.');
@@ -265,8 +328,7 @@ export async function POST(req: NextRequest) {
       const mostVoted = max > 0 ? Object.keys(tally).filter((k) => tally[k] === max) : [];
       const caught = mostVoted.length === 1 && liarIds.has(mostVoted[0]);
 
-      // Scoring: truth-tellers +2 when a liar is caught (+1 sharp-eye bonus for voting a liar),
-      // liars +3 when they escape, +1 for a liar who stays hidden while a teammate is caught.
+      // Scoring is provisional when a liar is caught, until the host judges their word guess.
       const points = ppl.map((p: any) => {
         const isLiar = liarIds.has(p.id);
         let pts = 0; const notes: string[] = [];
@@ -283,6 +345,9 @@ export async function POST(req: NextRequest) {
 
       const result = {
         caught, noVotes: max === 0, mostVoted, voteCount: max,
+        caughtLiarId: caught ? mostVoted[0] : null,
+        guessStatus: caught ? 'pending' : 'not_needed',
+        guessText: null, guessCorrect: null,
         civilianWord: room.word_a, liarWord: room.word_b,
         liars: ppl.filter((p: any) => liarIds.has(p.id)).map((p: any) => ({ id: p.id, name: p.name, team: p.team })),
         tally: ppl.filter((p: any) => tally[p.id]).map((p: any) => ({ id: p.id, name: p.name, votes: tally[p.id], liar: liarIds.has(p.id) })).sort((a: any, b: any) => b.votes - a.votes),
@@ -295,6 +360,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'next') {
+      const { data: current, error: readError } = await db.from('round_results').select('result').eq('room_id', room.id).eq('round', room.round).maybeSingle();
+      if (readError) throw readError;
+      if (current?.result?.guessStatus === 'pending' || current?.result?.guessStatus === 'submitted') {
+        return fail('The caught player must submit a guess and the host must judge it before the next round.');
+      }
       if (!(await transition(db, room, 'revealed', 'lobby'))) return fail('The round has not been revealed yet.');
       return NextResponse.json({ ok: true });
     }
