@@ -8,7 +8,7 @@ Everyone gets a secret word on their phone. Most players share the *same* word �
 Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players join by QR code or 6-digit room code.
 
 ## How a round works
-1. Host creates a room (Individual or 2 Teams, player limit, liars, word difficulty, optional **Blind mode**).
+1. Host creates a room (Individual or 2 Teams, player limit, liars, word categories, optional **Blind mode**).
 2. Players scan the QR / enter the code and pick a nickname.
 3. Host starts the round. Each player **presses and holds** to peek at their word (it hides the moment they let go).
 4. A shared **speaking order** appears. Everyone gives one short clue, never saying the word.
@@ -22,7 +22,7 @@ Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players
 - **Scoring & scoreboard** across rounds, with team totals.
 - **Host can play too** (one phone as host + player), plus **kick** players, players can **leave**, and the host can **end the game**.
 - **Blind mode** — liars aren't told their role; they must work it out.
-- **Word difficulty** (Mixed / Easy / Medium / Hard), **~60 word pairs** (up from 12), no repeats within a room, and the civilian/liar word is randomly swapped so it can never be a tell.
+- **Selectable word categories** — mix Everyday words with Bible characters, stories, places, and objects. The word bank includes pairs chosen for lively clues, with no repeats within a room and random civilian/liar word assignment.
 - **Press-and-hold to peek** at your word (shoulder-surfing protection); auto-hides on new phase or when the tab is hidden.
 - **Speaking order** (identical on every phone) and a **phase timer**.
 - **Voting upgrades** — vote lock-in confirmation, live "votes in" progress bar, per-player ✓ markers, "Reveal anyway" when someone is stalling, and a vote breakdown on reveal.
@@ -45,6 +45,7 @@ Fill `.env.local` (Supabase URL, anon key, service-role key, a random `TOKEN_SEC
 - **New project:** SQL Editor → run `supabase/schema.sql`.
 - **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first. It adds three room columns plus indexes and keeps your data.
 - **Already running any earlier schema:** SQL Editor → run `supabase/migration-v3.sql` to allow 3-player Individual rooms. For an original UNDERCOVER database, run this after migration-v2.sql.
+- **Existing database adding word categories:** SQL Editor → run `supabase/migration-v4.sql`.
 - Keep the service-role key private — never prefix it with `NEXT_PUBLIC_`.
 
 ## 3. Run locally

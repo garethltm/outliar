@@ -1,9 +1,13 @@
 import { randomInt } from 'crypto';
+import type { WordCategory } from '@/lib/word-categories';
 
-export type Difficulty = 'mixed' | 'easy' | 'medium' | 'hard';
-export const DIFFICULTIES: Difficulty[] = ['mixed', 'easy', 'medium', 'hard'];
-
-type Pair = { a: string; b: string; category: string; level: 'Easy' | 'Medium' | 'Hard' };
+type Pair = {
+  a: string;
+  b: string;
+  category: string;
+  level: 'Easy' | 'Medium' | 'Hard';
+  pack?: WordCategory;
+};
 
 /**
  * Each pair is "similar but not the same" — close enough that the liar can
@@ -75,17 +79,74 @@ export const WORD_PAIRS: Pair[] = [
   { a: 'AMBITION', b: 'GREED', category: 'Feelings', level: 'Hard' },
   { a: 'DIET', b: 'FASTING', category: 'Health', level: 'Hard' },
   { a: 'INTROVERT', b: 'SHY PERSON', category: 'People', level: 'Hard' },
+
+  // ── Bible characters ────────────────────────────────────
+  { a: 'DAVID', b: 'SAMSON', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'MOSES', b: 'ELIJAH', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+  { a: 'PETER', b: 'PAUL', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'ESTHER', b: 'RUTH', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'MARY', b: 'MARTHA', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'ABRAHAM', b: 'ISAAC', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+  { a: 'JOSEPH', b: 'DANIEL', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+  { a: 'JOSHUA', b: 'GIDEON', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+  { a: 'SOLOMON', b: 'SAUL', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+  { a: 'JONAH', b: 'NOAH', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'PETER', b: 'THOMAS', category: 'Bible Characters', level: 'Easy', pack: 'bible_characters' },
+  { a: 'ELIJAH', b: 'ELISHA', category: 'Bible Characters', level: 'Medium', pack: 'bible_characters' },
+
+  // ── Bible stories and events ────────────────────────────
+  { a: 'THE FLOOD', b: 'THE EXODUS', category: 'Bible Stories & Events', level: 'Easy', pack: 'bible_stories' },
+  { a: 'DAVID AND GOLIATH', b: 'DANIEL IN THE LIONS’ DEN', category: 'Bible Stories & Events', level: 'Easy', pack: 'bible_stories' },
+  { a: 'THE GOOD SAMARITAN', b: 'THE PRODIGAL SON', category: 'Bible Stories & Events', level: 'Medium', pack: 'bible_stories' },
+  { a: 'THE TOWER OF BABEL', b: 'THE DAY OF PENTECOST', category: 'Bible Stories & Events', level: 'Hard', pack: 'bible_stories' },
+  { a: 'THE NATIVITY', b: 'THE RESURRECTION', category: 'Bible Stories & Events', level: 'Easy', pack: 'bible_stories' },
+  { a: 'THE LAST SUPPER', b: 'THE WEDDING AT CANA', category: 'Bible Stories & Events', level: 'Medium', pack: 'bible_stories' },
+  { a: 'CROSSING THE RED SEA', b: 'CROSSING THE JORDAN', category: 'Bible Stories & Events', level: 'Medium', pack: 'bible_stories' },
+  { a: 'FEEDING THE FIVE THOUSAND', b: 'WATER INTO WINE', category: 'Bible Stories & Events', level: 'Medium', pack: 'bible_stories' },
+  { a: 'JONAH AND THE GREAT FISH', b: 'NOAH AND THE ARK', category: 'Bible Stories & Events', level: 'Easy', pack: 'bible_stories' },
+  { a: 'THE FALL OF JERICHO', b: 'GIDEON’S FLEECE', category: 'Bible Stories & Events', level: 'Hard', pack: 'bible_stories' },
+  { a: 'CREATION', b: 'THE FLOOD', category: 'Bible Stories & Events', level: 'Easy', pack: 'bible_stories' },
+  { a: 'THE BURNING BUSH', b: 'THE FIERY FURNACE', category: 'Bible Stories & Events', level: 'Medium', pack: 'bible_stories' },
+
+  // ── Bible places ────────────────────────────────────────
+  { a: 'BETHLEHEM', b: 'NAZARETH', category: 'Bible Places', level: 'Easy', pack: 'bible_places' },
+  { a: 'JERUSALEM', b: 'JERICHO', category: 'Bible Places', level: 'Easy', pack: 'bible_places' },
+  { a: 'THE GARDEN OF EDEN', b: 'THE GARDEN OF GETHSEMANE', category: 'Bible Places', level: 'Medium', pack: 'bible_places' },
+  { a: 'MOUNT SINAI', b: 'MOUNT CARMEL', category: 'Bible Places', level: 'Medium', pack: 'bible_places' },
+  { a: 'THE RED SEA', b: 'THE JORDAN RIVER', category: 'Bible Places', level: 'Easy', pack: 'bible_places' },
+  { a: 'BABYLON', b: 'NINEVEH', category: 'Bible Places', level: 'Hard', pack: 'bible_places' },
+  { a: 'THE SEA OF GALILEE', b: 'THE DEAD SEA', category: 'Bible Places', level: 'Medium', pack: 'bible_places' },
+  { a: 'CAPERNAUM', b: 'BETHANY', category: 'Bible Places', level: 'Hard', pack: 'bible_places' },
+  { a: 'EGYPT', b: 'CANAAN', category: 'Bible Places', level: 'Easy', pack: 'bible_places' },
+  { a: 'SODOM', b: 'GOMORRAH', category: 'Bible Places', level: 'Medium', pack: 'bible_places' },
+  { a: 'THE WILDERNESS', b: 'THE PROMISED LAND', category: 'Bible Places', level: 'Medium', pack: 'bible_places' },
+  { a: 'PATMOS', b: 'TARSUS', category: 'Bible Places', level: 'Hard', pack: 'bible_places' },
+
+  // ── Bible objects and symbols ───────────────────────────
+  { a: 'NOAH’S ARK', b: 'THE ARK OF THE COVENANT', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
+  { a: 'MOSES’ STAFF', b: 'DAVID’S SLING', category: 'Bible Objects & Symbols', level: 'Easy', pack: 'bible_objects' },
+  { a: 'THE STONE TABLETS', b: 'A TORAH SCROLL', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
+  { a: 'MANNA', b: 'QUAIL', category: 'Bible Objects & Symbols', level: 'Easy', pack: 'bible_objects' },
+  { a: 'SAUL’S SPEAR', b: 'GOLIATH’S SWORD', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
+  { a: 'JOSEPH’S COAT', b: 'ELIJAH’S MANTLE', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
+  { a: 'THE GOLDEN CALF', b: 'THE BRONZE SERPENT', category: 'Bible Objects & Symbols', level: 'Hard', pack: 'bible_objects' },
+  { a: 'JERICHO’S TRUMPETS', b: 'A RAM’S HORN', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
+  { a: 'THE CROWN OF THORNS', b: 'THE CROSS', category: 'Bible Objects & Symbols', level: 'Easy', pack: 'bible_objects' },
+  { a: 'LOAVES OF BREAD', b: 'FISH', category: 'Bible Objects & Symbols', level: 'Easy', pack: 'bible_objects' },
+  { a: 'FRANKINCENSE', b: 'MYRRH', category: 'Bible Objects & Symbols', level: 'Hard', pack: 'bible_objects' },
+  { a: 'A MUSTARD SEED', b: 'A FIG TREE', category: 'Bible Objects & Symbols', level: 'Medium', pack: 'bible_objects' },
 ];
 
 export type PickedPair = { civilian: string; liar: string; category: string; level: string };
 
 /**
- * Picks a pair for the requested difficulty, skipping words already used in
- * this room (falls back to the full pool once everything has been played).
+ * Picks from the selected word packs, skipping words already used in this room
+ * (falls back to the selected pool once everything has been played).
  * Which word goes to the civilians is randomised, so "word A" is never a tell.
  */
-export function pickPair(difficulty: Difficulty, used: Set<string>): PickedPair {
-  const pool = WORD_PAIRS.filter((p) => difficulty === 'mixed' || p.level.toLowerCase() === difficulty);
+export function pickPair(categories: WordCategory[], used: Set<string>): PickedPair {
+  const selected = new Set(categories);
+  const pool = WORD_PAIRS.filter((p) => selected.has(p.pack ?? 'everyday'));
   let fresh = pool.filter((p) => !used.has(p.a) && !used.has(p.b));
   if (fresh.length === 0) fresh = pool;
   const pair = fresh[randomInt(fresh.length)];

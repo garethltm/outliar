@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, Db } from '@/lib/supabase';
 import { hashToken, newCode, newToken, rateLimit, safeEqual, shuffle } from '@/lib/security';
-import { DIFFICULTIES, pickPair } from '@/lib/words';
+import { pickPair } from '@/lib/words';
 import { minimumPlayers, startRequirement } from '@/lib/rules';
+import { DEFAULT_WORD_CATEGORIES, isWordCategory } from '@/lib/word-categories';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,11 @@ export async function POST(req: NextRequest) {
       if (maxPlayers < minPlayers) {
         return fail(`Player limit must be at least ${minPlayers} for ${imposters} ${imposters === 1 ? 'liar' : 'liars'}${mode === 'teams' ? ' per team in 2 Teams mode' : ''}.`);
       }
-      const difficulty = DIFFICULTIES.includes(data.difficulty) ? data.difficulty : 'mixed';
+      const requestedCategories = data.wordCategories === undefined ? DEFAULT_WORD_CATEGORIES : data.wordCategories;
+      if (!Array.isArray(requestedCategories) || requestedCategories.length === 0 || !requestedCategories.every(isWordCategory)) {
+        return fail('Select at least one valid word category.');
+      }
+      const wordCategories = [...new Set(requestedCategories)];
       const liarsKnow = data.liarsKnow !== false;
       const hostToken = newToken();
       let room: any = null;
@@ -76,11 +81,11 @@ export async function POST(req: NextRequest) {
         const { data: created, error } = await db
           .from('rooms')
           .insert({
-            code: newCode(), mode, max_players: maxPlayers, imposter_count: imposters, difficulty,
+            code: newCode(), mode, max_players: maxPlayers, imposter_count: imposters, word_categories: wordCategories,
             liars_know: liarsKnow, status: 'lobby', host_token_hash: hashToken(hostToken), round: 0,
             phase_started_at: nowIso(),
           })
-          .select('id,code,mode,max_players,imposter_count,status,round')
+          .select('id,code,mode,max_players,imposter_count,word_categories,status,round')
           .single();
         if (error && (error as any).code === '23505') continue; // room code collision — try another
         if (error) throw error;
@@ -161,7 +166,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         room: {
           code: room.code, mode: room.mode, max_players: room.max_players, imposter_count: room.imposter_count,
-          status: room.status, round: room.round, difficulty: room.difficulty || 'mixed', liars_know: room.liars_know !== false,
+          word_categories: room.word_categories || DEFAULT_WORD_CATEGORIES,
+          status: room.status, round: room.round, liars_know: room.liars_know !== false,
         },
         players: roster, assignment, playerId: player?.id || null, isHost, myVote,
         votedIds, votesSubmitted: votedIds.length, result, scoreboard, teamScores,
@@ -217,7 +223,7 @@ export async function POST(req: NextRequest) {
       (past || []).forEach((r: any) => { if (r.result?.civilianWord) used.add(r.result.civilianWord); if (r.result?.liarWord) used.add(r.result.liarWord); });
       if (room.word_a) used.add(room.word_a);
       if (room.word_b) used.add(room.word_b);
-      const pair = pickPair(room.difficulty || 'mixed', used);
+      const pair = pickPair(room.word_categories || DEFAULT_WORD_CATEGORIES, used);
 
       const round = room.round + 1;
       const shuffled = shuffle(list);

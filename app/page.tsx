@@ -5,15 +5,14 @@ import { LogoMark, Wordmark } from '@/components/Logo';
 import { Credit } from '@/components/Credit';
 import { api, loadName, saveName, saveSession } from '@/lib/api';
 import { minimumPlayers } from '@/lib/rules';
-
-const DIFFICULTY_LABELS: Record<string, string> = { mixed: 'Mixed', easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+import { DEFAULT_WORD_CATEGORIES, WORD_CATEGORIES, type WordCategory } from '@/lib/word-categories';
 
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<'individual' | 'teams'>('individual');
   const [maxPlayers, setMaxPlayers] = useState('16');
   const [liars, setLiars] = useState(1);
-  const [difficulty, setDifficulty] = useState('mixed');
+  const [wordCategories, setWordCategories] = useState<WordCategory[]>(DEFAULT_WORD_CATEGORIES);
   const [liarsKnow, setLiarsKnow] = useState(true);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -23,6 +22,13 @@ export default function Home() {
   const minPlayers = minimumPlayers(mode, liars);
   const playerLimit = Number(maxPlayers);
   const validPlayerLimit = Number.isInteger(playerLimit) && playerLimit >= minPlayers && playerLimit <= 30;
+  const validWordCategories = wordCategories.length > 0;
+
+  function toggleWordCategory(category: WordCategory) {
+    setWordCategories((selected) => selected.includes(category)
+      ? selected.filter((item) => item !== category)
+      : [...selected, category]);
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -94,12 +100,24 @@ export default function Home() {
               </div>
             </div>
 
-            <label className="text-sm muted">Word difficulty</label>
-            <div className="grid grid-cols-4 gap-2 mt-2 mb-5">
-              {Object.keys(DIFFICULTY_LABELS).map((d) => (
-                <button key={d} onClick={() => setDifficulty(d)} className={`btn-ghost !px-0 text-sm ${difficulty === d ? 'on' : ''}`}>{DIFFICULTY_LABELS[d]}</button>
-              ))}
-            </div>
+            <fieldset className="mb-5">
+              <legend className="text-sm muted">Word categories</legend>
+              <p className="muted text-xs mt-1">Selected categories are mixed together.</p>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {WORD_CATEGORIES.map(({ id, label }) => (
+                  <label key={id} className="btn-ghost flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[#ff3d5a]"
+                      checked={wordCategories.includes(id)}
+                      onChange={() => toggleWordCategory(id)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {!validWordCategories && <p role="alert" className="text-red-300 text-xs mt-2">Select at least one word category.</p>}
+            </fieldset>
 
             <label className="flex items-start gap-3 mb-5 cursor-pointer">
               <input type="checkbox" className="mt-1 h-4 w-4 accent-[#ff3d5a]" checked={!liarsKnow} onChange={(e) => setLiarsKnow(!e.target.checked)} />
@@ -109,7 +127,7 @@ export default function Home() {
               </span>
             </label>
 
-            <button className="btn w-full" disabled={busy || !validPlayerLimit} onClick={() => send({ action: 'create', mode, maxPlayers: playerLimit, imposters: liars, difficulty, liarsKnow })}>
+            <button className="btn w-full" disabled={busy || !validPlayerLimit || !validWordCategories} onClick={() => send({ action: 'create', mode, maxPlayers: playerLimit, imposters: liars, wordCategories, liarsKnow })}>
               {busy ? 'Creating…' : 'Create game room'}
             </button>
           </section>

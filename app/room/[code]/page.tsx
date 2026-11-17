@@ -10,6 +10,7 @@ import { Scoreboard, teamColor } from '@/components/Scoreboard';
 import { api, clearSession, loadName, loadSession, saveName, Session } from '@/lib/api';
 import { speakingOrder } from '@/lib/order';
 import { startRequirement } from '@/lib/rules';
+import { DEFAULT_WORD_CATEGORIES, wordCategoryLabel } from '@/lib/word-categories';
 
 type Player = { id: string; name: string; team: string | null };
 type State = {
@@ -165,6 +166,9 @@ export default function Room() {
                 </div>
                 <p className="muted mt-4 text-sm">
                   {state.players.length} / {room.max_players} joined · {room.mode === 'teams' ? 'Team showdown' : 'Individual'} · {room.imposter_count} {nounLiars}{room.mode === 'teams' ? ' per team' : ''}
+                </p>
+                <p className="muted mt-1 text-xs">
+                  Word mix: {(room.word_categories || DEFAULT_WORD_CATEGORIES).map(wordCategoryLabel).join(', ')}
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
