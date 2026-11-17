@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, Db } from '@/lib/supabase';
 import { hashToken, newCode, newToken, rateLimit, safeEqual, shuffle } from '@/lib/security';
 import { DIFFICULTIES, pickPair } from '@/lib/words';
-import { startRequirement } from '@/lib/rules';
+import { minimumPlayers, startRequirement } from '@/lib/rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,8 +59,15 @@ export async function POST(req: NextRequest) {
     if (action === 'create') {
       if (!rateLimit('create:' + ip, 10, 60000)) return fail('Too many rooms created. Please wait a minute.', 429);
       const mode = data.mode === 'teams' ? 'teams' : 'individual';
-      const maxPlayers = Math.min(30, Math.max(4, Number(data.maxPlayers) || 16));
+      const maxPlayers = Number(data.maxPlayers);
+      if (!Number.isInteger(maxPlayers) || maxPlayers < 3 || maxPlayers > 30) {
+        return fail('Player limit must be a whole number between 3 and 30.');
+      }
       const imposters = Math.min(3, Math.max(1, Number(data.imposters) || 1));
+      const minPlayers = minimumPlayers(mode, imposters);
+      if (maxPlayers < minPlayers) {
+        return fail(`Player limit must be at least ${minPlayers} for ${imposters} ${imposters === 1 ? 'liar' : 'liars'}${mode === 'teams' ? ' per team in 2 Teams mode' : ''}.`);
+      }
       const difficulty = DIFFICULTIES.includes(data.difficulty) ? data.difficulty : 'mixed';
       const liarsKnow = data.liarsKnow !== false;
       const hostToken = newToken();

@@ -26,7 +26,7 @@ Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players
 - **Press-and-hold to peek** at your word (shoulder-surfing protection); auto-hides on new phase or when the tab is hidden.
 - **Speaking order** (identical on every phone) and a **phase timer**.
 - **Voting upgrades** — vote lock-in confirmation, live "votes in" progress bar, per-player ✓ markers, "Reveal anyway" when someone is stalling, and a vote breakdown on reveal.
-- **Fair-play rules enforced** — liars must always be a minority (e.g. 1 liar needs 3+ players; in Teams mode 3+ per team).
+- **Fair-play rules enforced** — liars must always be a minority (1 liar needs 3+ players in Individual mode and 3+ per team in Teams mode).
 - **Robustness** — duplicate nicknames rejected, phase guards (no double-start / out-of-order actions), balanced team assignment, unbiased shuffle, cryptographically random room codes, room-code collision retry, best-effort rate limiting, polling pauses on hidden tabs, helpful messages when a room closes or you're removed.
 
 ## Requirements
@@ -43,7 +43,8 @@ Fill `.env.local` (Supabase URL, anon key, service-role key, a random `TOKEN_SEC
 
 ## 2. Set up Supabase
 - **New project:** SQL Editor → run `supabase/schema.sql`.
-- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql`. It adds three room columns plus indexes and keeps your data. *The new code needs these columns, so run it before deploying.*
+- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first. It adds three room columns plus indexes and keeps your data.
+- **Already running any earlier schema:** SQL Editor → run `supabase/migration-v3.sql` to allow 3-player Individual rooms. For an original UNDERCOVER database, run this after migration-v2.sql.
 - Keep the service-role key private — never prefix it with `NEXT_PUBLIC_`.
 
 ## 3. Run locally

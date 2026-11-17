@@ -2,12 +2,16 @@
  * Shared by the API (authoritative) and the UI (to explain why Start is disabled).
  * Returns a human-readable problem, or null when the round can start.
  */
+export function minimumPlayers(mode: string, liars: number): number {
+  const playersPerTeam = 2 * liars + 1;
+  return mode === 'teams' ? playersPerTeam * 2 : playersPerTeam;
+}
+
 export function startRequirement(
   mode: string,
   liars: number,
   players: { team?: string | null }[],
 ): string | null {
-  if (players.length < 4) return 'You need at least 4 players to start.';
   const need = 2 * liars + 1; // liars must always be a minority
   const noun = liars > 1 ? 'liars' : 'liar';
   if (mode === 'teams') {

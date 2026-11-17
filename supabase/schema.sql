@@ -5,7 +5,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.rooms (
  id uuid primary key default gen_random_uuid(), code text unique not null,
  mode text not null check (mode in ('individual','teams')),
- max_players int not null default 16 check (max_players between 4 and 30),
+ max_players int not null default 16 check (max_players between 3 and 30),
  imposter_count int not null default 1 check (imposter_count between 1 and 3),
  difficulty text not null default 'mixed' check (difficulty in ('mixed','easy','medium','hard')),
  liars_know boolean not null default true,

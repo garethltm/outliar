@@ -4,13 +4,14 @@ import { useRouter } from 'next/navigation';
 import { LogoMark, Wordmark } from '@/components/Logo';
 import { Credit } from '@/components/Credit';
 import { api, loadName, saveName, saveSession } from '@/lib/api';
+import { minimumPlayers } from '@/lib/rules';
 
 const DIFFICULTY_LABELS: Record<string, string> = { mixed: 'Mixed', easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 export default function Home() {
   const router = useRouter();
   const [mode, setMode] = useState<'individual' | 'teams'>('individual');
-  const [max, setMax] = useState(16);
+  const [maxPlayers, setMaxPlayers] = useState('16');
   const [liars, setLiars] = useState(1);
   const [difficulty, setDifficulty] = useState('mixed');
   const [liarsKnow, setLiarsKnow] = useState(true);
@@ -19,6 +20,9 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const minPlayers = minimumPlayers(mode, liars);
+  const playerLimit = Number(maxPlayers);
+  const validPlayerLimit = Number.isInteger(playerLimit) && playerLimit >= minPlayers && playerLimit <= 30;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -67,9 +71,20 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
                 <label htmlFor="max" className="text-sm muted">Player limit</label>
-                <select id="max" className="field mt-2" value={max} onChange={(e) => setMax(Number(e.target.value))}>
-                  {[4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 30].map((n) => <option key={n} value={n}>{n} players</option>)}
-                </select>
+                <input
+                  id="max"
+                  type="number"
+                  className="field mt-2"
+                  min={minPlayers}
+                  max={30}
+                  step={1}
+                  inputMode="numeric"
+                  value={maxPlayers}
+                  aria-invalid={!validPlayerLimit}
+                  aria-describedby={!validPlayerLimit ? 'player-limit-error' : undefined}
+                  onChange={(e) => setMaxPlayers(e.target.value)}
+                />
+                {!validPlayerLimit && <p id="player-limit-error" className="text-red-300 text-xs mt-1">Enter a whole number from {minPlayers} to 30.</p>}
               </div>
               <div>
                 <label htmlFor="liars" className="text-sm muted">Liars{mode === 'teams' ? ' / team' : ''}</label>
@@ -94,7 +109,7 @@ export default function Home() {
               </span>
             </label>
 
-            <button className="btn w-full" disabled={busy} onClick={() => send({ action: 'create', mode, maxPlayers: max, imposters: liars, difficulty, liarsKnow })}>
+            <button className="btn w-full" disabled={busy || !validPlayerLimit} onClick={() => send({ action: 'create', mode, maxPlayers: playerLimit, imposters: liars, difficulty, liarsKnow })}>
               {busy ? 'Creating…' : 'Create game room'}
             </button>
           </section>
