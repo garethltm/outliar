@@ -68,7 +68,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen px-5 py-10 flex items-center justify-center">
-      <div className="w-full max-w-3xl">
+      <div className="w-full max-w-5xl">
         <header className="text-center mb-9">
           <LogoMark size={92} animate className="mx-auto mb-3" />
           <h1><Wordmark className="text-6xl md:text-7xl" /></h1>
@@ -78,8 +78,8 @@ export default function Home() {
 
         {notice && <p role="status" className="text-center text-amber mb-5 text-sm">{notice}</p>}
 
-        <div className="grid md:grid-cols-2 gap-5">
-          <section className="panel p-6">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
+          <section className="panel min-w-0 p-5 sm:p-6">
             <div className="eyebrow mb-2">Host a game</div>
             <h2 className="text-2xl font-bold mb-5">Create a room</h2>
 
@@ -182,7 +182,7 @@ export default function Home() {
             </button>
           </section>
 
-          <section className="panel p-6">
+          <section className="panel min-w-0 p-5 sm:p-6">
             <div className="eyebrow mb-2">Join a game</div>
             <h2 className="text-2xl font-bold mb-5">Enter the room</h2>
 

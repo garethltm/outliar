@@ -136,11 +136,11 @@ export default function Room() {
   const result = state.result;
 
   return (
-    <main className="min-h-screen px-5 py-8">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center gap-3 mb-7">
+    <main className="min-h-screen px-4 py-6 sm:px-5 sm:py-8">
+      <div className="max-w-5xl mx-auto min-w-0">
+        <header className="flex flex-wrap justify-between items-center gap-3 mb-7">
           <Logo size={30} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="timer" aria-label={`Room code ${code}`}>ROOM {code}</span>
             {state.isHost
               ? <button className="btn-danger text-sm" onClick={endGame}>End game</button>
@@ -150,8 +150,8 @@ export default function Room() {
 
         {error && <div role="alert" className="mb-4 text-red-300 text-sm">{error}</div>}
 
-        <div className="grid md:grid-cols-[1fr_290px] gap-5">
-          <section className="panel p-6" aria-live="polite">
+        <div className="grid min-w-0 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_290px]">
+          <section className="panel min-w-0 p-4 sm:p-6" aria-live="polite">
 
             {/* ───────────── LOBBY ───────────── */}
             {room.status === 'lobby' && (
@@ -168,13 +168,13 @@ export default function Room() {
                   {state.players.length} / {room.max_players} joined · {room.mode === 'teams' ? 'Team showdown' : 'Individual'} · {room.imposter_count} {nounLiars}{room.mode === 'teams' ? ' per team' : ''}
                 </p>
                 <p className="muted mt-1 text-xs">
-                  Word mix: {(room.word_categories || DEFAULT_WORD_CATEGORIES).map(wordCategoryLabel).join(', ')}
+                  Word mix: <span className="break-words">{(room.word_categories || DEFAULT_WORD_CATEGORIES).map(wordCategoryLabel).join(', ')}</span>
                 </p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                   {state.players.map((p) => (
-                    <div key={p.id} className={`chip flex items-center justify-between gap-2 ${p.id === state.playerId ? 'me' : ''}`}>
-                      <span className="truncate">{p.name}{p.team && <span className={`text-xs ml-1 ${teamColor(p.team)}`}>· {p.team}</span>}</span>
+                    <div key={p.id} className={`chip flex min-w-0 items-center justify-between gap-2 ${p.id === state.playerId ? 'me' : ''}`}>
+                      <span className="min-w-0 truncate">{p.name}{p.team && <span className={`text-xs ml-1 ${teamColor(p.team)}`}>· {p.team}</span>}</span>
                       {state.isHost && p.id !== state.playerId && (
                         <button className="muted text-xs hover:text-red-300" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => act('kick', { playerId: p.id })}>✕</button>
                       )}
@@ -187,8 +187,8 @@ export default function Room() {
                   <div className="mt-5 chip !p-4">
                     <div className="text-sm font-bold">Want to play too?</div>
                     <p className="muted text-xs mt-1 mb-3">As host you can also get a secret word and vote — use this phone as both.</p>
-                    <div className="flex gap-2">
-                      <input className="field !py-2.5" maxLength={20} placeholder="Your nickname" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input className="field min-w-0 !py-2.5" maxLength={20} placeholder="Your nickname" value={hostName} onChange={(e) => setHostName(e.target.value)} />
                       <button className="btn-ghost whitespace-nowrap" disabled={busy || !hostName.trim()} onClick={async () => { saveName(hostName); await act('host-join', { name: hostName }); }}>Play too</button>
                     </div>
                   </div>
@@ -218,7 +218,7 @@ export default function Room() {
             {/* ───────────── CLUES ───────────── */}
             {room.status === 'clues' && (
               <>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow">Round {room.round} · Clue phase</div>
                   <PhaseTimer since={state.phaseStartedAt} offset={offset} label="Discussing" />
                 </div>
@@ -231,7 +231,7 @@ export default function Room() {
                       className={`peek mt-4 rounded-2xl p-6 text-center border transition-colors ${peek ? 'border-liar/60 bg-[#14111a]' : 'border-[#34364c] bg-[#0b0c15]'}`}
                     >
                       <p className="muted text-xs tracking-widest">YOUR SECRET WORD</p>
-                      <div className="text-4xl font-black my-4 min-h-[48px] break-words text-[#ffb3be]">{peek ? assignment.word : '••••••••'}</div>
+                      <div className="my-4 min-h-[48px] break-words text-3xl font-black text-[#ffb3be] sm:text-4xl">{peek ? assignment.word : '••••••••'}</div>
                       {peek && role === true && <p className="text-sm text-liar font-bold pop">You&apos;re the LIAR — your word is different. Blend in.</p>}
                       {peek && role === false && <p className="text-sm text-truth font-bold pop">You&apos;re a truth-teller. Find the liar.</p>}
                       {peek && role === null && <p className="text-sm muted pop">Someone&apos;s word is slightly different. Listen closely…</p>}
@@ -248,10 +248,10 @@ export default function Room() {
                   <div className="eyebrow mb-2">Speaking order</div>
                   <ol className="flex flex-wrap gap-2">
                     {order.map((p, i) => (
-                      <li key={p.id} className={`chip flex items-center gap-2 ${p.id === state.playerId ? 'me' : ''}`}>
+                      <li key={p.id} className={`chip flex min-w-0 max-w-full items-center gap-2 ${p.id === state.playerId ? 'me' : ''}`}>
                         <span className={`text-xs font-black ${i === 0 ? 'text-amber' : 'muted'}`}>{i + 1}</span>
-                        <span>{p.name}</span>
-                        {i === 0 && <span className="text-[10px] font-bold text-amber tracking-widest">STARTS</span>}
+                        <span className="break-words">{p.name}</span>
+                        {i === 0 && <span className="shrink-0 text-[10px] font-bold text-amber tracking-widest">STARTS</span>}
                       </li>
                     ))}
                   </ol>
@@ -265,11 +265,11 @@ export default function Room() {
             {/* ───────────── VOTING ───────────── */}
             {room.status === 'voting' && (
               <>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow">Round {room.round} · Voting</div>
                   <PhaseTimer since={state.phaseStartedAt} offset={offset} label="Voting" />
                 </div>
-                <h2 className="text-2xl font-bold mt-2">{room.imposter_count > 1 ? 'Who are the liars?' : 'Who’s the liar?'}</h2>
+                <h2 className="text-xl font-bold mt-2 break-words sm:text-2xl">{room.imposter_count > 1 ? 'Who are the liars?' : 'Who’s the liar?'}</h2>
                 {role === true && <p className="muted mt-2 text-sm">You&apos;re a liar. Vote strategically.</p>}
 
                 <div className="grid sm:grid-cols-2 gap-2 mt-5">
@@ -277,11 +277,11 @@ export default function Room() {
                     const chosen = (state.myVote || target) === p.id;
                     const voted = state.votedIds.includes(p.id);
                     if (!state.playerId) {
-                      return <div key={p.id} className="chip flex justify-between"><span>{p.name}</span>{voted && <span className="text-truth text-xs font-bold">VOTED ✓</span>}</div>;
+                      return <div key={p.id} className="chip flex min-w-0 justify-between gap-2"><span className="break-words">{p.name}</span>{voted && <span className="shrink-0 text-truth text-xs font-bold">VOTED ✓</span>}</div>;
                     }
                     return (
-                      <button key={p.id} disabled={!!state.myVote || busy} aria-pressed={chosen} onClick={() => setTarget(p.id)} className={`btn-ghost text-left flex justify-between items-center ${chosen ? 'on' : ''}`}>
-                        <span>{p.name}{p.team && <span className={`text-xs ml-2 ${teamColor(p.team)}`}>{p.team}</span>}</span>
+                      <button key={p.id} disabled={!!state.myVote || busy} aria-pressed={chosen} onClick={() => setTarget(p.id)} className={`btn-ghost text-left flex min-w-0 justify-between items-center gap-2 ${chosen ? 'on' : ''}`}>
+                        <span className="min-w-0 break-words">{p.name}{p.team && <span className={`text-xs ml-2 ${teamColor(p.team)}`}>{p.team}</span>}</span>
                         {voted && <span className="text-truth text-xs font-bold" title="Has voted">✓</span>}
                       </button>
                     );
@@ -309,7 +309,7 @@ export default function Room() {
             {room.status === 'revealed' && result && (
               <>
                 <div className="eyebrow">Round {room.round} · Reveal</div>
-                <h2 className={`text-3xl font-black mt-2 pop ${result.caught ? 'text-truth' : 'text-liar'}`}>
+                <h2 className={`mt-2 break-words text-2xl font-black leading-tight pop sm:text-3xl ${result.caught ? 'text-truth' : 'text-liar'}`}>
                   {result.noVotes ? 'NOBODY VOTED' : result.caught ? (result.liars.length > 1 ? 'A LIAR WAS CAUGHT' : 'LIAR CAUGHT') : (result.liars.length > 1 ? 'THE LIARS ESCAPED' : 'THE LIAR ESCAPED')}
                 </h2>
                 <p className="muted mt-2 text-sm">
@@ -318,14 +318,14 @@ export default function Room() {
                     : result.caught ? 'The most votes landed on a liar.' : 'The group voted for an innocent player.'}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2 mt-5">
-                  <div className="chip text-center"><div className="text-[10px] tracking-widest text-truth font-bold">TRUTH-TELLERS HAD</div><div className="font-black mt-1">{result.civilianWord}</div></div>
-                  <div className="chip text-center"><div className="text-[10px] tracking-widest text-liar font-bold">LIAR{result.liars.length > 1 ? 'S' : ''} HAD</div><div className="font-black mt-1">{result.liarWord}</div></div>
+                <div className="grid grid-cols-1 gap-2 mt-5 sm:grid-cols-2">
+                  <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-truth font-bold">TRUTH-TELLERS HAD</div><div className="mt-1 break-words font-black">{result.civilianWord}</div></div>
+                  <div className="chip min-w-0 text-center"><div className="break-words text-[10px] tracking-widest text-liar font-bold">LIAR{result.liars.length > 1 ? 'S' : ''} HAD</div><div className="mt-1 break-words font-black">{result.liarWord}</div></div>
                 </div>
 
                 <div className="mt-4 space-y-2">
                   {result.liars.map((p: any) => (
-                    <div key={p.id} className="bg-liar/10 border border-liar/40 p-3 rounded-xl text-sm">🤥 <b>{p.name}</b> was a liar</div>
+                    <div key={p.id} className="break-words bg-liar/10 border border-liar/40 p-3 rounded-xl text-sm">🤥 <b>{p.name}</b> was a liar</div>
                   ))}
                 </div>
 
@@ -335,7 +335,7 @@ export default function Room() {
                     <ul className="space-y-2.5">
                       {result.tally.map((t: any) => (
                         <li key={t.id}>
-                          <div className="flex justify-between text-sm mb-1"><span>{t.name}{t.liar && <span className="text-liar text-[10px] font-bold tracking-widest ml-2">LIAR</span>}</span><b>{t.votes}</b></div>
+                          <div className="flex justify-between gap-2 text-sm mb-1"><span className="min-w-0 break-words">{t.name}{t.liar && <span className="text-liar text-[10px] font-bold tracking-widest ml-2">LIAR</span>}</span><b className="shrink-0">{t.votes}</b></div>
                           <div className={`bar ${t.liar ? '' : 'ok'}`}><i style={{ width: `${(t.votes / result.voteCount) * 100}%` }} /></div>
                         </li>
                       ))}
@@ -357,7 +357,7 @@ export default function Room() {
           </section>
 
           {/* ───────────── SIDEBAR ───────────── */}
-          <aside className="panel p-5 h-fit">
+          <aside className="panel min-w-0 p-4 h-fit sm:p-5">
             <div className="eyebrow mb-3">{state.isHost ? 'Host panel' : 'Room info'}</div>
             {state.isHost ? (
               <>
@@ -368,13 +368,20 @@ export default function Room() {
             ) : (
               <p className="text-sm muted">You joined as <b className="text-white">{me?.name || session.name}</b>{me?.team && <span className={`ml-1 ${teamColor(me.team)}`}>(Team {me.team})</span>}.</p>
             )}
-            <div className="border-t border-line mt-5 pt-4 text-sm space-y-2">
-              <div className="flex justify-between"><span className="muted">Mode</span><b>{room.mode === 'teams' ? 'Teams' : 'Individual'}</b></div>
-              <div className="flex justify-between"><span className="muted">Players</span><b>{state.players.length}/{room.max_players}</b></div>
-              <div className="flex justify-between"><span className="muted">Liars</span><b>{room.imposter_count}{room.mode === 'teams' ? ' / team' : ''}</b></div>
-              <div className="flex justify-between"><span className="muted">Words</span><b className="capitalize">{room.difficulty}</b></div>
-              <div className="flex justify-between"><span className="muted">Blind mode</span><b>{room.liars_know ? 'Off' : 'On'}</b></div>
-              <div className="flex justify-between"><span className="muted">Phase</span><b className="capitalize">{room.status}</b></div>
+            <div className="border-t border-line mt-5 pt-4 text-sm space-y-3">
+              <div className="flex justify-between gap-3"><span className="muted">Mode</span><b className="text-right">{room.mode === 'teams' ? 'Team vs team' : 'Free-for-all'}</b></div>
+              <div className="flex justify-between gap-3"><span className="muted">Players</span><b className="text-right">{state.players.length}/{room.max_players}</b></div>
+              <div className="flex justify-between gap-3"><span className="muted">Liars</span><b className="text-right">{room.imposter_count}{room.mode === 'teams' ? ' / team' : ''}</b></div>
+              <div>
+                <div className="muted mb-1">Word topics</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(room.word_categories || DEFAULT_WORD_CATEGORIES).map((category: string) => (
+                    <span key={category} className="chip max-w-full break-words !px-2 !py-1 text-xs">{wordCategoryLabel(category)}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between gap-3"><span className="muted">Blind mode</span><b className="text-right">{room.liars_know ? 'Off' : 'On'}</b></div>
+              <div className="flex justify-between gap-3"><span className="muted">Phase</span><b className="text-right capitalize">{room.status}</b></div>
             </div>
           </aside>
         </div>
