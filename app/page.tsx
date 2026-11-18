@@ -10,6 +10,7 @@ import { DEFAULT_WORD_CATEGORIES, WORD_CATEGORIES, type WordCategory } from '@/l
 const CATEGORY_GROUPS = [
   { id: 'everyday', label: 'Everyday topics' },
   { id: 'bible', label: 'Bible topics' },
+  { id: 'wildcard', label: 'Wildcard topics' },
 ] as const;
 
 export default function Home() {

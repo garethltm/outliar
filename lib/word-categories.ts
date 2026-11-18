@@ -14,6 +14,14 @@ export const WORD_CATEGORIES = [
   { id: 'bible_stories', label: 'Stories & events', group: 'bible' },
   { id: 'bible_places', label: 'Places', group: 'bible' },
   { id: 'bible_objects', label: 'Objects & symbols', group: 'bible' },
+  { id: 'mythology_folklore', label: 'Myths & folklore', group: 'wildcard' },
+  { id: 'space_sci_fi', label: 'Space & sci-fi', group: 'wildcard' },
+  { id: 'fantasy_magic', label: 'Fantasy & magic', group: 'wildcard' },
+  { id: 'spooky_mystery', label: 'Spooky & mysterious', group: 'wildcard' },
+  { id: 'superpowers_time', label: 'Superpowers & time travel', group: 'wildcard' },
+  { id: 'internet_culture', label: 'Internet culture', group: 'wildcard' },
+  { id: 'strange_snacks', label: 'Strange snacks', group: 'wildcard' },
+  { id: 'history_inventions', label: 'History & inventions', group: 'wildcard' },
 ] as const;
 
 export type WordCategory = (typeof WORD_CATEGORIES)[number]['id'] | 'everyday';

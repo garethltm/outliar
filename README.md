@@ -22,7 +22,7 @@ Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players
 - **Scoring & scoreboard** across rounds, with team totals.
 - **Host can play too** (one phone as host + player), plus **kick** players, players can **leave**, and the host can **end the game**.
 - **Blind mode** — liars aren't told their role; they must work it out.
-- **Selectable word categories** — choose from 11 everyday topics plus Bible characters, stories, places, and objects; selected topics are mixed together. The word bank has no repeats within a room and random civilian/liar word assignment.
+- **Selectable word categories** — choose from 11 everyday topics, Bible topics, and 8 wildcards including myths, space, fantasy, spooky mysteries, superpowers, internet culture, strange snacks, and history; selected topics are mixed together. The word bank has no repeats within a room and random civilian/liar word assignment.
 - **Press-and-hold to peek** at your word (shoulder-surfing protection); auto-hides on new phase or when the tab is hidden.
 - **Speaking order** (identical on every phone) and a **phase timer**.
 - **Voting upgrades** — vote lock-in confirmation, live "votes in" progress bar, per-player ✓ markers, "Reveal anyway" when someone is stalling, and a vote breakdown on reveal.
@@ -43,8 +43,8 @@ Fill `.env.local` (Supabase URL, anon key, service-role key, a random `TOKEN_SEC
 
 ## 2. Set up Supabase
 - **New project:** SQL Editor → run `supabase/schema.sql`.
-- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first, then `supabase/migration-v3.sql` and `supabase/migration-v5.sql`.
-- **Already running an earlier outLIAR schema:** SQL Editor → run `supabase/migration-v5.sql` to update the selectable word topics. Run `supabase/migration-v3.sql` as well if you have not already applied it.
+- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first, then `supabase/migration-v3.sql`, `supabase/migration-v5.sql`, and `supabase/migration-v6.sql`.
+- **Already running an earlier outLIAR schema:** SQL Editor → run `supabase/migration-v5.sql` and `supabase/migration-v6.sql` to update the selectable word topics. Run `supabase/migration-v3.sql` as well if you have not already applied it.
 - Keep the service-role key private — never prefix it with `NEXT_PUBLIC_`.
 
 ## 3. Run locally
