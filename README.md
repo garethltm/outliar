@@ -60,7 +60,9 @@ Open `http://localhost:3000`. For phone testing on the same Wi-Fi use your compu
 4. Deploy. Tip: players can "Add to Home Screen" for a full-screen, bar-free experience.
 
 ## Housekeeping
-Old rooms are not deleted automatically. To tidy up, run this occasionally (or schedule it with Supabase Cron):
+Supabase Cron is configured to periodically delete rooms older than 24 hours. Review the job and its run history in **Supabase Dashboard → Integrations → Cron → Jobs**. Deleting a room also removes its related game data.
+
+To run the cleanup manually:
 ```sql
 delete from public.rooms where created_at < now() - interval '24 hours';
 ```
