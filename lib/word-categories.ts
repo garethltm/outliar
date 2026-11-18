@@ -22,6 +22,7 @@ export const WORD_CATEGORIES = [
   { id: 'internet_culture', label: 'Internet culture', group: 'wildcard' },
   { id: 'strange_snacks', label: 'Strange snacks', group: 'wildcard' },
   { id: 'history_inventions', label: 'History & inventions', group: 'wildcard' },
+  { id: 'malaysia', label: 'Malaysia', group: 'wildcard' },
 ] as const;
 
 export type WordCategory = (typeof WORD_CATEGORIES)[number]['id'] | 'everyday';

@@ -22,7 +22,7 @@ Built with Next.js 16 + Supabase, deployable to Vercel. No app download: players
 - **Scoring & scoreboard** across rounds, with team totals.
 - **Host can play too** (one phone as host + player), plus **kick** players, players can **leave**, and the host can **end the game**.
 - **Blind mode** — liars aren't told their role; they must work it out.
-- **Selectable word categories** — choose from 11 everyday topics, Bible topics, and 8 wildcards including myths, space, fantasy, spooky mysteries, superpowers, internet culture, strange snacks, and history; selected topics are mixed together. The word bank has no repeats within a room and random civilian/liar word assignment.
+- **Selectable word categories** — choose from 11 everyday topics, Bible topics, and 9 wildcards including myths, space, fantasy, spooky mysteries, superpowers, internet culture, strange snacks, history, and Malaysia; selected topics are mixed together. The word bank has no repeats within a room and random civilian/liar word assignment.
 - **Press-and-hold to peek** at your word (shoulder-surfing protection); auto-hides on new phase or when the tab is hidden.
 - **Speaking order** (identical on every phone) and a **phase timer**.
 - **Voting upgrades** — vote lock-in confirmation, live "votes in" progress bar, per-player ✓ markers, "Reveal anyway" when someone is stalling, and a vote breakdown on reveal.

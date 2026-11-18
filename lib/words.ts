@@ -248,6 +248,20 @@ export const WORD_PAIRS: Pair[] = [
   { a: 'CANDLE', b: 'LANTERN', category: 'History & Inventions', level: 'Easy', pack: 'history_inventions' },
   { a: 'SILK ROAD', b: 'SPICE ROUTE', category: 'History & Inventions', level: 'Medium', pack: 'history_inventions' },
   { a: 'STONEHENGE', b: 'COLOSSEUM', category: 'History & Inventions', level: 'Hard', pack: 'history_inventions' },
+
+  // ── Malaysia ────────────────────────────────────────────
+  { a: 'NASI LEMAK', b: 'NASI DAGANG', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'ROTI CANAI', b: 'ROTI TELUR', category: 'Malaysia', level: 'Easy', pack: 'malaysia' },
+  { a: 'CHAR KWAY TEOW', b: 'PENANG LAKSA', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'SATE', b: 'SATE CELUP', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'RENDANG', b: 'LEMANG', category: 'Malaysia', level: 'Easy', pack: 'malaysia' },
+  { a: 'TEH TARIK', b: 'WHITE COFFEE', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'PETRONAS TWIN TOWER', b: 'MENARA KL', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'GEORGE TOWN', b: 'JOHOR BAHRU', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'LANGKAWI', b: 'REDANG', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
+  { a: 'MALAYSIAN RINGGIT', b: 'SINGAPORE DOLLAR', category: 'Malaysia', level: 'Easy', pack: 'malaysia' },
+  { a: 'PROTON', b: 'PERODUA', category: 'Malaysia', level: 'Easy', pack: 'malaysia' },
+  { a: 'HARI RAYA', b: 'DEEPAVALI', category: 'Malaysia', level: 'Medium', pack: 'malaysia' },
 ];
 
 export type PickedPair = { civilian: string; liar: string; category: string; level: string };
