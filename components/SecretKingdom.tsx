@@ -9,7 +9,7 @@ const roles = [
   {
     icon: "🗡️",
     name: "Assassin",
-    text: "Identify the opposing kingdom’s King. Successfully identifying them earns your kingdom bonus points.",
+    text: "Identify the opposing kingdom’s King. Successfully identifying them earns points for your kingdom.",
   },
   {
     icon: "🃏",
@@ -55,9 +55,7 @@ const rounds = [
 export function SecretKingdom() {
   return (
     <details className="mt-6 text-sm">
-      <summary className="font-bold text-amber">
-        Bonus: Secret Kingdom ▾
-      </summary>
+      <summary className="font-bold text-amber">Secret Kingdom rules ▾</summary>
       <div className="mt-4 space-y-5 text-sm">
         <p className="muted">
           Find and stand with the correct kingdom when each round ends. Your
@@ -96,7 +94,7 @@ export function SecretKingdom() {
             </li>
             <li>The Kings and Assassins are revealed.</li>
             <li>The Joker&apos;s infiltration success is checked.</li>
-            <li>Bonus points are awarded.</li>
+            <li>Kingdom points are awarded.</li>
           </ol>
         </section>
 
@@ -119,32 +117,6 @@ export function SecretKingdom() {
               </article>
             ))}
           </div>
-        </section>
-
-        <section>
-          <div className="eyebrow mb-3">Bonus points</div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="chip text-center">
-              <b className="text-truth">+1</b>
-              <div className="muted text-xs mt-1">
-                Each correctly identified citizen
-              </div>
-            </div>
-            <div className="chip text-center">
-              <b className="text-truth">+2</b>
-              <div className="muted text-xs mt-1">Assassin finds the King</div>
-            </div>
-            <div className="chip text-center">
-              <b className="text-amber">+2</b>
-              <div className="muted text-xs mt-1">
-                Joker successfully infiltrates
-              </div>
-            </div>
-          </div>
-          <p className="muted text-xs mt-2">
-            If an Assassin identifies the opposing King, the identified King
-            loses 2 points.
-          </p>
         </section>
       </div>
     </details>

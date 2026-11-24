@@ -107,13 +107,22 @@ export async function POST(req: NextRequest) {
           : data.mode === "teams"
             ? "teams"
             : "individual";
+      const kingdomCount =
+        gameMode === "kingdom"
+          ? Math.min(4, Math.max(2, Number(data.kingdomCount) || 2))
+          : 2;
       const maxPlayers = Number(data.maxPlayers);
-      if (!Number.isInteger(maxPlayers) || maxPlayers < 3 || maxPlayers > 30) {
+      const minimumForMode = gameMode === "kingdom" ? kingdomCount * 4 : 3;
+      if (
+        !Number.isInteger(maxPlayers) ||
+        maxPlayers < minimumForMode ||
+        maxPlayers > 30
+      ) {
         return fail("Player limit must be a whole number between 3 and 30.");
       }
       const imposters = Math.min(3, Math.max(1, Number(data.imposters) || 1));
       const minPlayers = minimumPlayers(mode, imposters);
-      if (maxPlayers < minPlayers) {
+      if (gameMode === "undercover" && maxPlayers < minPlayers) {
         return fail(
           `Player limit must be at least ${minPlayers} for ${imposters} ${imposters === 1 ? "liar" : "liars"}${mode === "teams" ? " per team in 2 Teams mode" : ""}.`,
         );
@@ -139,6 +148,7 @@ export async function POST(req: NextRequest) {
           .insert({
             code: newCode(),
             game_mode: gameMode,
+            kingdom_count: kingdomCount,
             mode,
             max_players: maxPlayers,
             imposter_count: imposters,
@@ -150,7 +160,7 @@ export async function POST(req: NextRequest) {
             phase_started_at: nowIso(),
           })
           .select(
-            "id,code,game_mode,mode,max_players,imposter_count,word_categories,status,round",
+            "id,code,game_mode,kingdom_count,mode,max_players,imposter_count,word_categories,status,round",
           )
           .single();
         if (error && (error as any).code === "23505") continue; // room code collision — try another
@@ -190,6 +200,7 @@ export async function POST(req: NextRequest) {
         room: {
           code: room.code,
           game_mode: room.game_mode || "undercover",
+          kingdom_count: room.kingdom_count || 2,
           mode: room.mode,
           status: room.status,
         },
@@ -505,11 +516,12 @@ export async function POST(req: NextRequest) {
         .select("id,team")
         .eq("room_id", room.id);
       const list = players || [];
-      const problem = startRequirement(
-        room.mode,
-        room.imposter_count,
-        list as any,
-      );
+      const problem =
+        room.game_mode === "kingdom"
+          ? list.length < (room.kingdom_count || 2) * 4
+            ? `Secret Kingdom needs ${(room.kingdom_count || 2) * 4} players for ${room.kingdom_count || 2} kingdoms (4 players per kingdom).`
+            : null
+          : startRequirement(room.mode, room.imposter_count, list as any);
       if (problem) return fail(problem);
 
       // Avoid repeating words within the same room.
@@ -562,21 +574,27 @@ export async function POST(req: NextRequest) {
       let rows: any[];
       if (room.game_mode === "kingdom") {
         const kingdomOrder = shuffle(list);
-        const aTeam = kingdomOrder.filter((_: any, i: number) => i % 2 === 0);
-        const bTeam = kingdomOrder.filter((_: any, i: number) => i % 2 === 1);
-        const pairA = pickPair(
-          room.word_categories || DEFAULT_WORD_CATEGORIES,
-          used,
-        );
-        used.add(pairA.civilian);
-        used.add(pairA.liar);
-        const pairB = pickPair(
-          room.word_categories || DEFAULT_WORD_CATEGORIES,
-          used,
-        );
+        const kingdomCount = room.kingdom_count || 2;
+        const kingdomIds = ["A", "B", "C", "D"].slice(0, kingdomCount);
+        const teams: Record<string, any[]> = {};
+        const pairByTeam: Record<string, any> = {};
+        kingdomIds.forEach((id, index) => {
+          teams[id] = kingdomOrder.filter(
+            (_: any, i: number) => i % kingdomCount === index,
+          );
+          pairByTeam[id] = pickPair(
+            room.word_categories || DEFAULT_WORD_CATEGORIES,
+            used,
+          );
+          used.add(pairByTeam[id].civilian);
+          used.add(pairByTeam[id].liar);
+        });
         rows = list.map((p: any) => {
-          const team = aTeam.some((x: any) => x.id === p.id) ? "A" : "B";
-          const teammates = team === "A" ? aTeam : bTeam;
+          const team =
+            kingdomIds.find((id) =>
+              teams[id].some((x: any) => x.id === p.id),
+            ) || "A";
+          const teammates = teams[team];
           const position = teammates.findIndex((x: any) => x.id === p.id);
           const role =
             position === 0
@@ -586,17 +604,17 @@ export async function POST(req: NextRequest) {
                 : position === 2
                   ? "joker"
                   : "citizen";
-          const teamPair = team === "A" ? pairA : pairB;
-          const opposingPair = team === "A" ? pairB : pairA;
+          const opposingTeams = kingdomIds.filter((id) => id !== team);
+          const opposingTeam = opposingTeams[0];
           return {
             room_id: room.id,
             player_id: p.id,
             round,
-            word: role === "joker" ? "" : teamPair.civilian,
+            word: role === "joker" ? "" : pairByTeam[team].civilian,
             is_imposter: false,
             role,
             kingdom_team: team,
-            hint: role === "joker" ? opposingPair.category : null,
+            hint: role === "joker" ? pairByTeam[opposingTeam].category : null,
           };
         });
       } else {
@@ -762,8 +780,10 @@ export async function POST(req: NextRequest) {
       if (room.status !== "voting")
         return fail("Kingdom choices can only be made during voting.");
       if (!player) return fail("Only a player can choose a kingdom.", 403);
-      const choice = data.team === "A" || data.team === "B" ? data.team : null;
-      if (!choice) return fail("Choose Kingdom A or Kingdom B.");
+      const kingdomCount = room.kingdom_count || 2;
+      const validTeams = ["A", "B", "C", "D"].slice(0, kingdomCount);
+      const choice = validTeams.includes(data.team) ? data.team : null;
+      if (!choice) return fail("Choose a kingdom shown on your screen.");
       await db
         .from("players")
         .update({ kingdom_choice: choice })
@@ -815,17 +835,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await db
-        .from("votes")
-        .upsert(
-          {
-            room_id: room.id,
-            round: room.round,
-            voter_id: player.id,
-            target_id: targetId,
-          },
-          { onConflict: "room_id,round,voter_id" },
-        );
+      await db.from("votes").upsert(
+        {
+          room_id: room.id,
+          round: room.round,
+          voter_id: player.id,
+          target_id: targetId,
+        },
+        { onConflict: "room_id,round,voter_id" },
+      );
       return NextResponse.json({ ok: true });
     }
 

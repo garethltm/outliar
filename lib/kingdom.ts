@@ -1,3 +1,6 @@
+export const KINGDOM_IDS = ["A", "B", "C", "D"] as const;
+export type KingdomId = (typeof KINGDOM_IDS)[number];
+
 export type KingdomRole = "king" | "assassin" | "joker" | "citizen";
 
 export const KINGDOM_ROLES: Record<

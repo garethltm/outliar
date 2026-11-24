@@ -206,11 +206,12 @@ export default function Room() {
     process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
   ).replace(/\/$/, "");
   const joinUrl = `${origin}/?join=${code}`;
-  const problem = startRequirement(
-    room.mode,
-    room.imposter_count,
-    state.players,
-  );
+  const problem =
+    room.game_mode === "kingdom"
+      ? state.players.length < (room.kingdom_count || 2) * 4
+        ? `Secret Kingdom needs ${(room.kingdom_count || 2) * 4} players for ${room.kingdom_count || 2} kingdoms (4 players per kingdom).`
+        : null
+      : startRequirement(room.mode, room.imposter_count, state.players);
   const allVoted =
     state.players.length > 0 && state.votesSubmitted >= state.players.length;
   const assignment = state.assignment;
@@ -313,9 +314,9 @@ export default function Room() {
                 </div>
                 <p className="muted mt-4 text-sm">
                   {state.players.length} / {room.max_players} joined ·{" "}
-                  {room.mode === "teams" ? "Team showdown" : "Individual"} ·{" "}
-                  {room.imposter_count} {nounLiars}
-                  {room.mode === "teams" ? " per team" : ""}
+                  {room.game_mode === "kingdom"
+                    ? `Secret Kingdom · ${room.kingdom_count || 2} kingdoms`
+                    : `${room.mode === "teams" ? "Team showdown" : "Individual"} · ${room.imposter_count} ${nounLiars}${room.mode === "teams" ? " per team" : ""}`}
                 </p>
                 <p className="muted mt-1 text-xs">
                   Word mix:{" "}
@@ -655,26 +656,28 @@ export default function Room() {
                   </p>
                 )}
                 <div className="grid gap-3 mt-5 sm:grid-cols-2">
-                  {(["A", "B"] as const).map((team) => {
-                    const meChoice = state.players.find(
-                      (p) => p.id === state.playerId,
-                    )?.kingdom_choice;
-                    const chosen = meChoice === team || target === team;
-                    return (
-                      <button
-                        key={team}
-                        disabled={!!meChoice || busy}
-                        aria-pressed={chosen}
-                        onClick={() => setTarget(team)}
-                        className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""}`}
-                      >
-                        <div className="text-xs tracking-widest muted">
-                          KINGDOM
-                        </div>
-                        <div className="mt-1 text-3xl font-black">{team}</div>
-                      </button>
-                    );
-                  })}
+                  {(["A", "B", "C", "D"] as const)
+                    .slice(0, room.kingdom_count || 2)
+                    .map((team) => {
+                      const meChoice = state.players.find(
+                        (p) => p.id === state.playerId,
+                      )?.kingdom_choice;
+                      const chosen = meChoice === team || target === team;
+                      return (
+                        <button
+                          key={team}
+                          disabled={!!meChoice || busy}
+                          aria-pressed={chosen}
+                          onClick={() => setTarget(team)}
+                          className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""}`}
+                        >
+                          <div className="text-xs tracking-widest muted">
+                            KINGDOM
+                          </div>
+                          <div className="mt-1 text-3xl font-black">{team}</div>
+                        </button>
+                      );
+                    })}
                 </div>
                 {state.playerId &&
                 !state.players.find((p) => p.id === state.playerId)

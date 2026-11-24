@@ -11,6 +11,7 @@ import {
   type WordCategory,
 } from "@/lib/word-categories";
 import { SecretKingdom } from "@/components/SecretKingdom";
+import { KINGDOM_IDS } from "@/lib/kingdom";
 
 const CATEGORY_GROUPS = [
   { id: "everyday", label: "Everyday topics" },
@@ -23,6 +24,7 @@ export default function Home() {
   const [gameMode, setGameMode] = useState<"undercover" | "kingdom">(
     "undercover",
   );
+  const [kingdomCount, setKingdomCount] = useState(2);
   const [mode, setMode] = useState<"individual" | "teams">("individual");
   const [maxPlayers, setMaxPlayers] = useState("16");
   const [liars, setLiars] = useState(1);
@@ -35,7 +37,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const minPlayers = gameMode === "kingdom" ? 6 : minimumPlayers(mode, liars);
+  const minPlayers =
+    gameMode === "kingdom" ? kingdomCount * 4 : minimumPlayers(mode, liars);
   const playerLimit = Number(maxPlayers);
   const validPlayerLimit =
     Number.isInteger(playerLimit) &&
@@ -143,7 +146,7 @@ export default function Home() {
                 >
                   <span className="font-bold">Secret Kingdom</span>
                   <span className="muted text-xs leading-relaxed">
-                    Roles, two kingdoms, clues and infiltration.
+                    Roles, multiple kingdoms, clues and infiltration.
                   </span>
                 </button>
               </div>
@@ -200,27 +203,47 @@ export default function Home() {
             )}
 
             {gameMode === "kingdom" && (
-              <div className="mb-5">
-                <label htmlFor="kingdom-max" className="text-sm muted">
-                  Player limit
-                </label>
-                <input
-                  id="kingdom-max"
-                  type="number"
-                  className="field mt-2"
-                  min={6}
-                  max={30}
-                  step={1}
-                  inputMode="numeric"
-                  value={maxPlayers}
-                  onChange={(e) => setMaxPlayers(e.target.value)}
-                />
-                {!validPlayerLimit && (
-                  <p className="text-red-300 text-xs mt-1">
-                    Enter a whole number from 6 to 30.
-                  </p>
-                )}
-              </div>
+              <>
+                <fieldset className="mb-5">
+                  <legend className="text-sm muted">Number of kingdoms</legend>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {[2, 3, 4].map((count) => (
+                      <button
+                        key={count}
+                        type="button"
+                        aria-pressed={kingdomCount === count}
+                        onClick={() => setKingdomCount(count)}
+                        className={`btn-ghost text-center ${kingdomCount === count ? "on" : ""}`}
+                      >
+                        <b>{count}</b>
+                        <span className="muted block text-xs">kingdoms</span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="mb-5">
+                  <label htmlFor="kingdom-max" className="text-sm muted">
+                    Player limit
+                  </label>
+                  <input
+                    id="kingdom-max"
+                    type="number"
+                    className="field mt-2"
+                    min={kingdomCount * 4}
+                    max={30}
+                    step={1}
+                    inputMode="numeric"
+                    value={maxPlayers}
+                    onChange={(e) => setMaxPlayers(e.target.value)}
+                  />
+                  {!validPlayerLimit && (
+                    <p className="text-red-300 text-xs mt-1">
+                      Enter a whole number from {kingdomCount * 4} to 30.
+                    </p>
+                  )}
+                </div>
+              </>
             )}
 
             <fieldset className="mb-5">
@@ -291,6 +314,7 @@ export default function Home() {
                 send({
                   action: "create",
                   gameMode,
+                  kingdomCount,
                   mode: gameMode === "kingdom" ? "teams" : mode,
                   maxPlayers: playerLimit,
                   imposters: gameMode === "kingdom" ? 1 : liars,
