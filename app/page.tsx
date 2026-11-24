@@ -20,6 +20,9 @@ const CATEGORY_GROUPS = [
 
 export default function Home() {
   const router = useRouter();
+  const [gameMode, setGameMode] = useState<"undercover" | "kingdom">(
+    "undercover",
+  );
   const [mode, setMode] = useState<"individual" | "teams">("individual");
   const [maxPlayers, setMaxPlayers] = useState("16");
   const [liars, setLiars] = useState(1);
@@ -32,7 +35,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const minPlayers = minimumPlayers(mode, liars);
+  const minPlayers = gameMode === "kingdom" ? 6 : minimumPlayers(mode, liars);
   const playerLimit = Number(maxPlayers);
   const validPlayerLimit =
     Number.isInteger(playerLimit) &&
@@ -101,7 +104,9 @@ export default function Home() {
           <h1>
             <Wordmark className="text-6xl md:text-7xl" />
           </h1>
-          <p className="muted mt-3 text-lg">Blend in. Spot the liar.</p>
+          <p className="muted mt-3 text-lg">
+            Blend in. Choose your allegiance.
+          </p>
           <p className="eyebrow mt-3">The social deduction party game</p>
         </header>
 
@@ -117,80 +122,106 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-5">Create a room</h2>
 
             <fieldset className="mb-5">
-              <legend className="text-sm muted">Choose a game format</legend>
+              <legend className="text-sm muted">Choose a game mode</legend>
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <button
                   type="button"
-                  aria-pressed={mode === "individual"}
-                  onClick={() => setMode("individual")}
-                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${mode === "individual" ? "on" : ""}`}
+                  aria-pressed={gameMode === "undercover"}
+                  onClick={() => setGameMode("undercover")}
+                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${gameMode === "undercover" ? "on" : ""}`}
                 >
-                  <span className="font-bold">Free-for-all</span>
+                  <span className="font-bold">Undercover</span>
                   <span className="muted text-xs leading-relaxed">
-                    Everyone plays individually.
+                    Find the liar with secret, similar words.
                   </span>
                 </button>
                 <button
                   type="button"
-                  aria-pressed={mode === "teams"}
-                  onClick={() => setMode("teams")}
-                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${mode === "teams" ? "on" : ""}`}
+                  aria-pressed={gameMode === "kingdom"}
+                  onClick={() => setGameMode("kingdom")}
+                  className={`btn-ghost flex flex-col items-start gap-1 !px-4 !py-3 text-left ${gameMode === "kingdom" ? "on" : ""}`}
                 >
-                  <span className="font-bold">Team vs team</span>
+                  <span className="font-bold">Secret Kingdom</span>
                   <span className="muted text-xs leading-relaxed">
-                    Players are balanced across two teams.
+                    Roles, two kingdoms, clues and infiltration.
                   </span>
                 </button>
               </div>
             </fieldset>
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <label htmlFor="max" className="text-sm muted">
+            {gameMode === "undercover" && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label htmlFor="max" className="text-sm muted">
+                    Player limit
+                  </label>
+                  <input
+                    id="max"
+                    type="number"
+                    className="field mt-2"
+                    min={minPlayers}
+                    max={30}
+                    step={1}
+                    inputMode="numeric"
+                    value={maxPlayers}
+                    aria-invalid={!validPlayerLimit}
+                    aria-describedby={
+                      !validPlayerLimit ? "player-limit-error" : undefined
+                    }
+                    onChange={(e) => setMaxPlayers(e.target.value)}
+                  />
+                  {!validPlayerLimit && (
+                    <p
+                      id="player-limit-error"
+                      className="text-red-300 text-xs mt-1"
+                    >
+                      Enter a whole number from {minPlayers} to 30.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="liars" className="text-sm muted">
+                    Liars{mode === "teams" ? " / team" : ""}
+                  </label>
+                  <select
+                    id="liars"
+                    className="field mt-2"
+                    value={liars}
+                    onChange={(e) => setLiars(Number(e.target.value))}
+                  >
+                    {[1, 2, 3].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {gameMode === "kingdom" && (
+              <div className="mb-5">
+                <label htmlFor="kingdom-max" className="text-sm muted">
                   Player limit
                 </label>
                 <input
-                  id="max"
+                  id="kingdom-max"
                   type="number"
                   className="field mt-2"
-                  min={minPlayers}
+                  min={6}
                   max={30}
                   step={1}
                   inputMode="numeric"
                   value={maxPlayers}
-                  aria-invalid={!validPlayerLimit}
-                  aria-describedby={
-                    !validPlayerLimit ? "player-limit-error" : undefined
-                  }
                   onChange={(e) => setMaxPlayers(e.target.value)}
                 />
                 {!validPlayerLimit && (
-                  <p
-                    id="player-limit-error"
-                    className="text-red-300 text-xs mt-1"
-                  >
-                    Enter a whole number from {minPlayers} to 30.
+                  <p className="text-red-300 text-xs mt-1">
+                    Enter a whole number from 6 to 30.
                   </p>
                 )}
               </div>
-              <div>
-                <label htmlFor="liars" className="text-sm muted">
-                  Liars{mode === "teams" ? " / team" : ""}
-                </label>
-                <select
-                  id="liars"
-                  className="field mt-2"
-                  value={liars}
-                  onChange={(e) => setLiars(Number(e.target.value))}
-                >
-                  {[1, 2, 3].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            )}
 
             <fieldset className="mb-5">
               <legend className="text-sm muted">Choose word categories</legend>
@@ -253,31 +284,16 @@ export default function Home() {
               )}
             </fieldset>
 
-            <label className="flex items-start gap-3 mb-5 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-[#ff3d5a]"
-                checked={!liarsKnow}
-                onChange={(e) => setLiarsKnow(!e.target.checked)}
-              />
-              <span className="text-sm">
-                <b>Blind mode</b>
-                <span className="muted block">
-                  Liars aren&apos;t told they&apos;re liars — they have to work
-                  it out from the clues. Harder, and funnier.
-                </span>
-              </span>
-            </label>
-
             <button
               className="btn w-full"
               disabled={busy || !validPlayerLimit || !validWordCategories}
               onClick={() =>
                 send({
                   action: "create",
-                  mode,
+                  gameMode,
+                  mode: gameMode === "kingdom" ? "teams" : mode,
                   maxPlayers: playerLimit,
-                  imposters: liars,
+                  imposters: gameMode === "kingdom" ? 1 : liars,
                   wordCategories,
                   liarsKnow,
                 })
@@ -325,37 +341,41 @@ export default function Home() {
               {busy ? "Joining…" : "Join game"}
             </button>
 
-            <details className="mt-6 text-sm">
-              <summary className="font-bold text-[#ff8a9b]">
-                How to play ▾
-              </summary>
-              <ol className="muted mt-3 space-y-2 list-decimal pl-5">
-                <li>
-                  Everyone gets a secret word on their phone. Most people share
-                  the <b className="text-white">same</b> word — the liar gets a{" "}
-                  <b className="text-white">similar but different</b> one.
-                </li>
-                <li>
-                  Take turns giving one short clue about your word. Never say
-                  the word itself.
-                </li>
-                <li>
-                  Listen for the clue that doesn&apos;t quite fit, then vote for
-                  who you think the liar is.
-                </li>
-                <li>
-                  Most votes wins the round. A tie means the liar escapes.
-                </li>
-                <li>
-                  <b className="text-white">Points:</b> truth-tellers +2 for
-                  catching a liar (+1 for voting right). If caught, a liar can
-                  guess the shared word: the host judges it, and a correct guess
-                  gives the liar +3 while everyone else scores 0. A wrong guess
-                  keeps the normal points. Liars get +3 for escaping.
-                </li>
-              </ol>
-            </details>
-            <SecretKingdom />
+            {gameMode === "undercover" ? (
+              <details className="mt-6 text-sm">
+                <summary className="font-bold text-[#ff8a9b]">
+                  How to play Undercover ▾
+                </summary>
+                <ol className="muted mt-3 space-y-2 list-decimal pl-5">
+                  <li>
+                    Everyone gets a secret word on their phone. Most people
+                    share the <b className="text-white">same</b> word — the liar
+                    gets a <b className="text-white">similar but different</b>{" "}
+                    one.
+                  </li>
+                  <li>
+                    Take turns giving one short clue about your word. Never say
+                    the word itself.
+                  </li>
+                  <li>
+                    Listen for the clue that doesn&apos;t quite fit, then vote
+                    for who you think the liar is.
+                  </li>
+                  <li>
+                    Most votes wins the round. A tie means the liar escapes.
+                  </li>
+                  <li>
+                    <b className="text-white">Points:</b> truth-tellers +2 for
+                    catching a liar (+1 for voting right). If caught, a liar can
+                    guess the shared word: the host judges it, and a correct
+                    guess gives the liar +3 while everyone else scores 0. A
+                    wrong guess keeps the normal points. Liars get +3 for
+                    escaping.
+                  </li>
+                </ol>
+              </details>
+            ) : null}
+            {gameMode === "kingdom" && <SecretKingdom />}
           </section>
         </div>
 

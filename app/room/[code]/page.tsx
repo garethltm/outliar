@@ -22,12 +22,24 @@ import {
   wordCategoryLabel,
 } from "@/lib/word-categories";
 import { SecretKingdom } from "@/components/SecretKingdom";
+import { KINGDOM_ROLES, kingdomRoundName } from "@/lib/kingdom";
 
-type Player = { id: string; name: string; team: string | null };
+type Player = {
+  id: string;
+  name: string;
+  team: string | null;
+  kingdom_choice?: string | null;
+};
 type State = {
   room: any;
   players: Player[];
-  assignment: { word: string; is_imposter: boolean | null } | null;
+  assignment: {
+    word: string;
+    is_imposter: boolean | null;
+    role?: string;
+    kingdom_team?: string;
+    hint?: string;
+  } | null;
   playerId: string | null;
   isHost: boolean;
   myVote: string | null;
@@ -206,7 +218,7 @@ export default function Room() {
   const nounLiars = room.imposter_count > 1 ? "liars" : "liar";
 
   async function invite() {
-    const text = `Join my outLIAR game — room ${code}`;
+    const text = `Join my ${room.game_mode === "kingdom" ? "Secret Kingdom" : "Undercover"} game — room ${code}`;
     try {
       if (
         typeof navigator.share === "function" &&
@@ -421,7 +433,92 @@ export default function Room() {
             )}
 
             {/* ───────────── CLUES ───────────── */}
-            {room.status === "clues" && (
+            {room.status === "clues" &&
+              room.game_mode === "kingdom" &&
+              assignment && (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="eyebrow">
+                      Secret Kingdom · Round {room.round} ·{" "}
+                      {kingdomRoundName(room.round).name}
+                    </div>
+                    <PhaseTimer
+                      since={state.phaseStartedAt}
+                      offset={offset}
+                      label="Communicating"
+                    />
+                  </div>
+                  <div
+                    className={`mt-4 rounded-2xl border p-5 ${assignment.kingdom_team === "A" ? "border-amber/50 bg-amber/5" : "border-[#6ec6ff]/50 bg-[#6ec6ff]/5"}`}
+                  >
+                    <div className="text-xs tracking-widest muted">
+                      KINGDOM {assignment.kingdom_team}
+                    </div>
+                    <h2 className="mt-2 text-3xl font-black">
+                      {assignment.role
+                        ? KINGDOM_ROLES[
+                            assignment.role as keyof typeof KINGDOM_ROLES
+                          ]?.icon
+                        : ""}{" "}
+                      {assignment.role
+                        ? KINGDOM_ROLES[
+                            assignment.role as keyof typeof KINGDOM_ROLES
+                          ]?.label
+                        : ""}
+                    </h2>
+                    {assignment.role === "joker" ? (
+                      <p className="mt-3 text-lg">
+                        <span className="muted">Opposing topic:</span>{" "}
+                        <b className="text-amber">
+                          {assignment.hint || "Unknown"}
+                        </b>
+                      </p>
+                    ) : assignment.word ? (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        {...peekHandlers}
+                        className="peek mt-4 rounded-xl border border-[#34364c] bg-[#0b0c15] p-5 text-center"
+                      >
+                        <div className="muted text-xs">ASSIGNED WORD</div>
+                        <div className="mt-2 text-3xl font-black text-[#ffb3be]">
+                          {peek ? assignment.word : "••••••••"}
+                        </div>
+                        <p className="muted mt-2 text-xs">
+                          {peek
+                            ? "Release to hide"
+                            : "Press and hold to reveal"}
+                        </p>
+                      </div>
+                    ) : null}
+                    <p className="muted mt-4 text-sm">
+                      {assignment.role
+                        ? KINGDOM_ROLES[
+                            assignment.role as keyof typeof KINGDOM_ROLES
+                          ]?.description
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="chip mt-5 p-4">
+                    <b>{kingdomRoundName(room.round).rule}</b>
+                    <p className="muted mt-1 text-sm">
+                      Keep your role and assigned word secret. Never show a card
+                      or mention your kingdom colour.
+                    </p>
+                  </div>
+                  {state.isHost && (
+                    <button
+                      className="btn w-full mt-5"
+                      disabled={busy}
+                      onClick={() => act("begin-vote")}
+                    >
+                      Choose kingdoms
+                    </button>
+                  )}
+                </>
+              )}
+
+            {room.status === "clues" && room.game_mode === "undercover" && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow">Round {room.round} · Clue phase</div>
@@ -521,7 +618,92 @@ export default function Room() {
             )}
 
             {/* ───────────── VOTING ───────────── */}
-            {room.status === "voting" && (
+            {room.status === "voting" && room.game_mode === "kingdom" && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="eyebrow">
+                    Secret Kingdom · Round {room.round} · Kingdom choice
+                  </div>
+                  <PhaseTimer
+                    since={state.phaseStartedAt}
+                    offset={offset}
+                    label="Choosing"
+                  />
+                </div>
+                <h2 className="mt-2 text-2xl font-black">
+                  Which kingdom do you belong to?
+                </h2>
+                <p className="muted mt-2 text-sm">
+                  Choose carefully. You are not allowed to mention your team
+                  colour or show your card.
+                </p>
+                {assignment?.role && (
+                  <p className="mt-3 text-sm">
+                    <b>
+                      {
+                        KINGDOM_ROLES[
+                          assignment.role as keyof typeof KINGDOM_ROLES
+                        ]?.icon
+                      }{" "}
+                      Your role:
+                    </b>{" "}
+                    {
+                      KINGDOM_ROLES[
+                        assignment.role as keyof typeof KINGDOM_ROLES
+                      ]?.label
+                    }
+                  </p>
+                )}
+                <div className="grid gap-3 mt-5 sm:grid-cols-2">
+                  {(["A", "B"] as const).map((team) => {
+                    const meChoice = state.players.find(
+                      (p) => p.id === state.playerId,
+                    )?.kingdom_choice;
+                    const chosen = meChoice === team || target === team;
+                    return (
+                      <button
+                        key={team}
+                        disabled={!!meChoice || busy}
+                        aria-pressed={chosen}
+                        onClick={() => setTarget(team)}
+                        className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""}`}
+                      >
+                        <div className="text-xs tracking-widest muted">
+                          KINGDOM
+                        </div>
+                        <div className="mt-1 text-3xl font-black">{team}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {state.playerId &&
+                !state.players.find((p) => p.id === state.playerId)
+                  ?.kingdom_choice ? (
+                  <button
+                    className="btn w-full mt-5"
+                    disabled={!target || busy}
+                    onClick={() => act("kingdom-choice", { team: target })}
+                  >
+                    Lock in kingdom
+                  </button>
+                ) : state.playerId ? (
+                  <p className="text-truth font-bold text-center mt-5">
+                    ✓ Kingdom locked in
+                  </p>
+                ) : null}
+                {state.isHost && (
+                  <button
+                    className="btn w-full mt-5"
+                    disabled={busy}
+                    onClick={() => act("reveal")}
+                  >
+                    Reveal kingdoms and roles
+                  </button>
+                )}
+              </>
+            )}
+
+            {room.status === "voting" && room.game_mode === "undercover" && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow">Round {room.round} · Voting</div>
@@ -640,224 +822,311 @@ export default function Room() {
             )}
 
             {/* ───────────── REVEAL ───────────── */}
-            {room.status === "revealed" && result && (
-              <>
-                <div className="eyebrow">Round {room.round} · Reveal</div>
-                <h2
-                  className={`mt-2 break-words text-2xl font-black leading-tight pop sm:text-3xl ${result.caught ? "text-truth" : "text-liar"}`}
-                >
-                  {result.noVotes
-                    ? "NOBODY VOTED"
-                    : result.caught
-                      ? result.liars.length > 1
-                        ? "A LIAR WAS CAUGHT"
-                        : "LIAR CAUGHT"
-                      : result.liars.length > 1
-                        ? "THE LIARS ESCAPED"
-                        : "THE LIAR ESCAPED"}
-                </h2>
-                <p className="muted mt-2 text-sm">
-                  {result.noVotes
-                    ? "No votes were cast, so the liar slips away."
-                    : result.mostVoted.length > 1
-                      ? "The vote was tied, so the liar slips away."
-                      : result.caught
-                        ? "The most votes landed on a liar."
-                        : "The group voted for an innocent player."}
-                </p>
-
-                <div className="mt-4 space-y-2">
-                  {result.liars.map((p: any) => (
-                    <div
-                      key={p.id}
-                      className="break-words bg-liar/10 border border-liar/40 p-3 rounded-xl text-sm"
-                    >
-                      🤥 <b>{p.name}</b> was a liar
-                    </div>
-                  ))}
-                </div>
-
-                {guessPending && (
-                  <div className="chip mt-5 !p-4">
-                    <div className="eyebrow mb-2">
-                      Caught liar&apos;s word guess
-                    </div>
-                    {result.guessStatus === "submitted" && state.isHost ? (
-                      <>
-                        <p className="break-words text-sm">
-                          Guess: <b>{result.guessText}</b>
-                        </p>
-                        <p className="muted mt-2 text-sm">
-                          Shared word:{" "}
-                          <b className="text-white">{result.civilianWord}</b>
-                        </p>
-                        <div className="grid gap-2 mt-4 sm:grid-cols-2">
-                          <button
-                            className="btn"
-                            disabled={busy}
-                            onClick={() =>
-                              act("judge-guess", { correct: true })
+            {room.status === "revealed" &&
+              result &&
+              room.game_mode === "kingdom" && (
+                <>
+                  <div className="eyebrow">
+                    Secret Kingdom · Round {room.round} · Reveal
+                  </div>
+                  <h2 className="mt-2 text-3xl font-black pop">
+                    The kingdoms are revealed
+                  </h2>
+                  <div className="grid gap-3 mt-5 sm:grid-cols-2">
+                    {(result.kingdoms || []).map((kingdom: any) => (
+                      <div
+                        key={kingdom.team}
+                        className={`chip p-4 ${kingdom.team === "A" ? "border-amber/50" : "border-[#6ec6ff]/50"}`}
+                      >
+                        <div className="text-xs tracking-widest muted">
+                          KINGDOM {kingdom.team}
+                        </div>
+                        <div className="mt-2 font-black">
+                          👑 {kingdom.king || "King unknown"}
+                        </div>
+                        <div className="mt-2 text-sm muted">
+                          {kingdom.members.map((p: any) => p.name).join(" · ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5">
+                    <div className="eyebrow mb-3">Secret roles</div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {(result.roles || []).map((role: any) => (
+                        <div
+                          key={role.playerId}
+                          className="chip flex justify-between gap-3"
+                        >
+                          <span>
+                            <b>{role.name}</b>
+                            <span className="muted text-xs ml-2">
+                              Kingdom {role.team}
+                            </span>
+                          </span>
+                          <span>
+                            {
+                              KINGDOM_ROLES[
+                                role.role as keyof typeof KINGDOM_ROLES
+                              ]?.icon
+                            }{" "}
+                            {
+                              KINGDOM_ROLES[
+                                role.role as keyof typeof KINGDOM_ROLES
+                              ]?.label
                             }
-                          >
-                            Correct — liar gets +3
-                          </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-6">
+                    <div className="eyebrow mb-3">Kingdom scoreboard</div>
+                    <Scoreboard
+                      rows={state.scoreboard}
+                      teamScores={state.teamScores}
+                      mode="individual"
+                      meId={state.playerId}
+                    />
+                  </div>
+                  {state.isHost ? (
+                    <button
+                      className="btn w-full mt-6"
+                      disabled={busy}
+                      onClick={() => act("next")}
+                    >
+                      Back to lobby / next round
+                    </button>
+                  ) : (
+                    <p className="muted text-sm mt-6">
+                      Waiting for the host to start the next round…
+                    </p>
+                  )}
+                </>
+              )}
+
+            {room.status === "revealed" &&
+              result &&
+              room.game_mode === "undercover" && (
+                <>
+                  <div className="eyebrow">Round {room.round} · Reveal</div>
+                  <h2
+                    className={`mt-2 break-words text-2xl font-black leading-tight pop sm:text-3xl ${result.caught ? "text-truth" : "text-liar"}`}
+                  >
+                    {result.noVotes
+                      ? "NOBODY VOTED"
+                      : result.caught
+                        ? result.liars.length > 1
+                          ? "A LIAR WAS CAUGHT"
+                          : "LIAR CAUGHT"
+                        : result.liars.length > 1
+                          ? "THE LIARS ESCAPED"
+                          : "THE LIAR ESCAPED"}
+                  </h2>
+                  <p className="muted mt-2 text-sm">
+                    {result.noVotes
+                      ? "No votes were cast, so the liar slips away."
+                      : result.mostVoted.length > 1
+                        ? "The vote was tied, so the liar slips away."
+                        : result.caught
+                          ? "The most votes landed on a liar."
+                          : "The group voted for an innocent player."}
+                  </p>
+
+                  <div className="mt-4 space-y-2">
+                    {result.liars.map((p: any) => (
+                      <div
+                        key={p.id}
+                        className="break-words bg-liar/10 border border-liar/40 p-3 rounded-xl text-sm"
+                      >
+                        🤥 <b>{p.name}</b> was a liar
+                      </div>
+                    ))}
+                  </div>
+
+                  {guessPending && (
+                    <div className="chip mt-5 !p-4">
+                      <div className="eyebrow mb-2">
+                        Caught liar&apos;s word guess
+                      </div>
+                      {result.guessStatus === "submitted" && state.isHost ? (
+                        <>
+                          <p className="break-words text-sm">
+                            Guess: <b>{result.guessText}</b>
+                          </p>
+                          <p className="muted mt-2 text-sm">
+                            Shared word:{" "}
+                            <b className="text-white">{result.civilianWord}</b>
+                          </p>
+                          <div className="grid gap-2 mt-4 sm:grid-cols-2">
+                            <button
+                              className="btn"
+                              disabled={busy}
+                              onClick={() =>
+                                act("judge-guess", { correct: true })
+                              }
+                            >
+                              Correct — liar gets +3
+                            </button>
+                            <button
+                              className="btn-ghost"
+                              disabled={busy}
+                              onClick={() =>
+                                act("judge-guess", { correct: false })
+                              }
+                            >
+                              Incorrect — normal points
+                            </button>
+                          </div>
+                        </>
+                      ) : result.guessStatus === "pending" &&
+                        state.playerId === result.caughtLiarId ? (
+                        <form
+                          className="flex flex-col gap-2 sm:flex-row"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void act("submit-guess", { guess });
+                          }}
+                        >
+                          <input
+                            className="field min-w-0"
+                            maxLength={100}
+                            placeholder="What was the shared word?"
+                            value={guess}
+                            onChange={(e) => setGuess(e.target.value)}
+                          />
                           <button
-                            className="btn-ghost"
+                            className="btn-ghost whitespace-nowrap"
+                            disabled={busy || !guess.trim()}
+                          >
+                            Submit guess
+                          </button>
+                        </form>
+                      ) : result.guessStatus === "pending" && state.isHost ? (
+                        <>
+                          <p className="muted text-sm">
+                            Waiting for the caught liar to submit a guess.
+                          </p>
+                          <button
+                            className="btn-ghost mt-3 w-full"
                             disabled={busy}
                             onClick={() =>
                               act("judge-guess", { correct: false })
                             }
                           >
-                            Incorrect — normal points
+                            No guess received? Mark incorrect
                           </button>
-                        </div>
-                      </>
-                    ) : result.guessStatus === "pending" &&
-                      state.playerId === result.caughtLiarId ? (
-                      <form
-                        className="flex flex-col gap-2 sm:flex-row"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          void act("submit-guess", { guess });
-                        }}
-                      >
-                        <input
-                          className="field min-w-0"
-                          maxLength={100}
-                          placeholder="What was the shared word?"
-                          value={guess}
-                          onChange={(e) => setGuess(e.target.value)}
-                        />
-                        <button
-                          className="btn-ghost whitespace-nowrap"
-                          disabled={busy || !guess.trim()}
-                        >
-                          Submit guess
-                        </button>
-                      </form>
-                    ) : result.guessStatus === "pending" && state.isHost ? (
-                      <>
+                        </>
+                      ) : result.guessStatus === "submitted" &&
+                        state.playerId === result.caughtLiarId ? (
                         <p className="muted text-sm">
-                          Waiting for the caught liar to submit a guess.
+                          Your guess has been submitted. Waiting for the host to
+                          judge it.
                         </p>
-                        <button
-                          className="btn-ghost mt-3 w-full"
-                          disabled={busy}
-                          onClick={() => act("judge-guess", { correct: false })}
-                        >
-                          No guess received? Mark incorrect
-                        </button>
-                      </>
-                    ) : result.guessStatus === "submitted" &&
-                      state.playerId === result.caughtLiarId ? (
-                      <p className="muted text-sm">
-                        Your guess has been submitted. Waiting for the host to
-                        judge it.
-                      </p>
-                    ) : (
-                      <p className="muted text-sm">
-                        {result.guessStatus === "pending"
-                          ? "The caught liar is making a guess."
-                          : "The host is checking the guess."}
-                      </p>
-                    )}
-                  </div>
-                )}
+                      ) : (
+                        <p className="muted text-sm">
+                          {result.guessStatus === "pending"
+                            ? "The caught liar is making a guess."
+                            : "The host is checking the guess."}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {!guessPending && (
-                  <div className="grid grid-cols-1 gap-2 mt-5 sm:grid-cols-2">
-                    <div className="chip min-w-0 text-center">
-                      <div className="break-words text-[10px] tracking-widest text-truth font-bold">
-                        TRUTH-TELLERS HAD
+                  {!guessPending && (
+                    <div className="grid grid-cols-1 gap-2 mt-5 sm:grid-cols-2">
+                      <div className="chip min-w-0 text-center">
+                        <div className="break-words text-[10px] tracking-widest text-truth font-bold">
+                          TRUTH-TELLERS HAD
+                        </div>
+                        <div className="mt-1 break-words font-black">
+                          {result.civilianWord}
+                        </div>
                       </div>
-                      <div className="mt-1 break-words font-black">
-                        {result.civilianWord}
+                      <div className="chip min-w-0 text-center">
+                        <div className="break-words text-[10px] tracking-widest text-liar font-bold">
+                          LIAR{result.liars.length > 1 ? "S" : ""} HAD
+                        </div>
+                        <div className="mt-1 break-words font-black">
+                          {result.liarWord}
+                        </div>
                       </div>
                     </div>
-                    <div className="chip min-w-0 text-center">
-                      <div className="break-words text-[10px] tracking-widest text-liar font-bold">
-                        LIAR{result.liars.length > 1 ? "S" : ""} HAD
-                      </div>
-                      <div className="mt-1 break-words font-black">
-                        {result.liarWord}
-                      </div>
+                  )}
+
+                  {result.guessStatus === "judged" && (
+                    <p
+                      className={`mt-4 text-sm font-bold ${result.guessCorrect ? "text-truth" : "text-liar"}`}
+                    >
+                      {result.guessText ? (
+                        <>Guess: “{result.guessText}” — </>
+                      ) : (
+                        "No guess — "
+                      )}
+                      {result.guessCorrect
+                        ? "Correct! The caught liar gets 3 points; no one else scores this round."
+                        : "Incorrect. Normal round points apply."}
+                    </p>
+                  )}
+
+                  {result.tally.length > 0 && (
+                    <div className="mt-5">
+                      <div className="eyebrow mb-3">How the votes landed</div>
+                      <ul className="space-y-2.5">
+                        {result.tally.map((t: any) => (
+                          <li key={t.id}>
+                            <div className="flex justify-between gap-2 text-sm mb-1">
+                              <span className="min-w-0 break-words">
+                                {t.name}
+                                {t.liar && (
+                                  <span className="text-liar text-[10px] font-bold tracking-widest ml-2">
+                                    LIAR
+                                  </span>
+                                )}
+                              </span>
+                              <b className="shrink-0">{t.votes}</b>
+                            </div>
+                            <div className={`bar ${t.liar ? "" : "ok"}`}>
+                              <i
+                                style={{
+                                  width: `${(t.votes / result.voteCount) * 100}%`,
+                                }}
+                              />
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {result.guessStatus === "judged" && (
-                  <p
-                    className={`mt-4 text-sm font-bold ${result.guessCorrect ? "text-truth" : "text-liar"}`}
-                  >
-                    {result.guessText ? (
-                      <>Guess: “{result.guessText}” — </>
-                    ) : (
-                      "No guess — "
-                    )}
-                    {result.guessCorrect
-                      ? "Correct! The caught liar gets 3 points; no one else scores this round."
-                      : "Incorrect. Normal round points apply."}
-                  </p>
-                )}
+                  {!guessPending && (
+                    <div className="mt-6">
+                      <div className="eyebrow mb-3">Scoreboard</div>
+                      <Scoreboard
+                        rows={state.scoreboard}
+                        teamScores={state.teamScores}
+                        mode={room.mode}
+                        meId={state.playerId}
+                        gained={gained}
+                      />
+                    </div>
+                  )}
 
-                {result.tally.length > 0 && (
-                  <div className="mt-5">
-                    <div className="eyebrow mb-3">How the votes landed</div>
-                    <ul className="space-y-2.5">
-                      {result.tally.map((t: any) => (
-                        <li key={t.id}>
-                          <div className="flex justify-between gap-2 text-sm mb-1">
-                            <span className="min-w-0 break-words">
-                              {t.name}
-                              {t.liar && (
-                                <span className="text-liar text-[10px] font-bold tracking-widest ml-2">
-                                  LIAR
-                                </span>
-                              )}
-                            </span>
-                            <b className="shrink-0">{t.votes}</b>
-                          </div>
-                          <div className={`bar ${t.liar ? "" : "ok"}`}>
-                            <i
-                              style={{
-                                width: `${(t.votes / result.voteCount) * 100}%`,
-                              }}
-                            />
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {!guessPending && (
-                  <div className="mt-6">
-                    <div className="eyebrow mb-3">Scoreboard</div>
-                    <Scoreboard
-                      rows={state.scoreboard}
-                      teamScores={state.teamScores}
-                      mode={room.mode}
-                      meId={state.playerId}
-                      gained={gained}
-                    />
-                  </div>
-                )}
-
-                {state.isHost ? (
-                  <button
-                    className="btn w-full mt-6"
-                    disabled={busy || guessPending}
-                    onClick={() => act("next")}
-                  >
-                    Back to lobby / next round
-                  </button>
-                ) : (
-                  <p className="muted text-sm mt-6">
-                    Waiting for the host to start the next round…
-                  </p>
-                )}
-              </>
-            )}
+                  {state.isHost ? (
+                    <button
+                      className="btn w-full mt-6"
+                      disabled={busy || guessPending}
+                      onClick={() => act("next")}
+                    >
+                      Back to lobby / next round
+                    </button>
+                  ) : (
+                    <p className="muted text-sm mt-6">
+                      Waiting for the host to start the next round…
+                    </p>
+                  )}
+                </>
+              )}
             {room.status === "revealed" && !result && (
               <p className="muted">Loading results…</p>
             )}
