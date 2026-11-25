@@ -80,7 +80,7 @@ export const KINGDOM_ROUNDS = [
 ] as const;
 
 export const KINGDOM_SCORING = {
-  roundParticipation: 1,
+  correctPlacement: 1,
   assassinFindsKing: 2,
   jokerInfiltrates: 2,
 } as const;

@@ -99,6 +99,7 @@ export function SecretKingdom() {
               believe is a King.
             </li>
             <li>Jokers lock their assigned target as their infiltration attempt.</li>
+            <li>The host checks each player&apos;s physical placement.</li>
             <li>Kings, roles, topics, words, and mission results are revealed.</li>
           </ol>
         </section>
@@ -106,7 +107,8 @@ export function SecretKingdom() {
         <section>
           <div className="eyebrow mb-3">Scoring each round</div>
           <ul className="muted space-y-1.5 list-disc pl-5">
-            <li>Everyone receives +1 participation point.</li>
+            <li>Correct placement in your assigned kingdom: +1 point.</li>
+            <li>Incorrect placement: +0 placement points.</li>
             <li>Assassin correctly identifies an opposing King: +2 points.</li>
             <li>Joker chooses their assigned target kingdom: +2 points.</li>
           </ul>

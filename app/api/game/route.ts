@@ -945,8 +945,8 @@ export async function POST(req: NextRequest) {
           }));
         const points = ppl.map((person: any) => {
           const assignment = roleByPlayer.get(person.id);
-          let score = KINGDOM_SCORING.roundParticipation;
-          const notes: string[] = ["Round participation"];
+          let score = 0;
+          const notes: string[] = [];
           if (assignment?.role === "joker") {
             if (person.kingdom_choice === assignment.target_team) {
               score += KINGDOM_SCORING.jokerInfiltrates;
@@ -969,12 +969,16 @@ export async function POST(req: NextRequest) {
             name: person.name,
             team: null,
             role: assignment?.role || "citizen",
+            rolePoints: score,
+            placementPoints: 0,
             points: score,
+            roleNote: notes.join(" · "),
             note: notes.join(" · "),
           };
         });
         const result = {
           gameMode: "kingdom",
+          placementVersion: 0,
           kingdoms,
           roles: (assignments || []).map((assignment: any) => ({
             playerId: assignment.player_id,
@@ -988,6 +992,12 @@ export async function POST(req: NextRequest) {
           })),
           assassinGuesses,
           jokerResults,
+          placements: ppl.map((person: any) => ({
+            playerId: person.id,
+            name: person.name,
+            team: roleByPlayer.get(person.id)?.kingdom_team || null,
+            correct: null,
+          })),
           points,
         };
         const { error: resultError } = await db
@@ -1096,6 +1106,15 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (readError) throw readError;
       if (
+        room.game_mode === "kingdom" &&
+        Array.isArray(current?.result?.placements) &&
+        current.result.placements.some(
+          (placement: any) => typeof placement.correct !== "boolean",
+        )
+      ) {
+        return fail("The host must review every player's placement before the next round.");
+      }
+      if (
         current?.result?.guessStatus === "pending" ||
         current?.result?.guessStatus === "submitted"
       ) {
@@ -1105,6 +1124,93 @@ export async function POST(req: NextRequest) {
       }
       if (!(await transition(db, room, "revealed", "lobby")))
         return fail("The round has not been revealed yet.");
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "judge-placement") {
+      if (room.game_mode !== "kingdom")
+        return fail("Placement scoring is only available in Secret Kingdom.");
+      if (room.status !== "revealed")
+        return fail("Placements can only be scored after the reveal.");
+      if (!isHost)
+        return fail("Only the host can score player placements.", 403);
+      if (typeof data.correct !== "boolean")
+        return fail("Choose whether the player was correctly placed.");
+
+      const playerId = String(data.playerId || "");
+      if (!playerId) return fail("Choose a player to score.");
+
+      const { data: current, error: readError } = await db
+        .from("round_results")
+        .select("result")
+        .eq("room_id", room.id)
+        .eq("round", room.round)
+        .maybeSingle();
+      if (readError) throw readError;
+      const placements = current?.result?.placements;
+      if (!current || !Array.isArray(placements))
+        return fail("This round has no placement review data.");
+      if (!placements.some((placement: any) => placement.playerId === playerId))
+        return fail("That player was not part of this round.");
+
+      const nextPlacements = placements.map((placement: any) =>
+        placement.playerId === playerId
+          ? { ...placement, correct: data.correct }
+          : placement,
+      );
+      const placementVersion = Number.isSafeInteger(
+        current.result.placementVersion,
+      )
+        ? current.result.placementVersion
+        : 0;
+      const correctByPlayer = new Map(
+        nextPlacements.map((placement: any) => [
+          placement.playerId,
+          placement.correct,
+        ]),
+      );
+      const points = (current.result.points || []).map((point: any) => {
+        const rolePoints =
+          typeof point.rolePoints === "number"
+            ? point.rolePoints
+            : point.points || 0;
+        const correctPlacement =
+          correctByPlayer.get(point.id) === true;
+        const placementPoints = correctPlacement
+          ? KINGDOM_SCORING.correctPlacement
+          : 0;
+        const placementNote =
+          correctByPlayer.get(point.id) === null
+            ? ""
+            : correctPlacement
+              ? "Correct placement"
+              : "Incorrect placement";
+        const note = [point.roleNote, placementNote].filter(Boolean).join(" · ");
+        return {
+          ...point,
+          rolePoints,
+          placementPoints,
+          points: rolePoints + placementPoints,
+          note,
+        };
+      });
+      const result = {
+        ...current.result,
+        placementVersion: placementVersion + 1,
+        placements: nextPlacements,
+        points,
+      };
+      const { data: updated, error: updateError } = await db
+        .from("round_results")
+        .update({ result })
+        .eq("room_id", room.id)
+        .eq("round", room.round)
+        .eq("result->>gameMode", "kingdom")
+        .eq("result->>placementVersion", String(placementVersion))
+        .select("round");
+      if (updateError) throw updateError;
+      if (!updated?.length)
+        return fail("The placement scores changed. Refresh and try again.");
       return NextResponse.json({ ok: true });
     }
 

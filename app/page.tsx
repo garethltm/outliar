@@ -47,6 +47,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [isInvite, setIsInvite] = useState(false);
   const minPlayers =
     gameMode === "kingdom"
       ? kingdomCount *
@@ -104,7 +105,10 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const invite = params.get("join");
     const invitedGameMode = params.get("gameMode");
-    if (invite) setCode(invite.replace(/\D/g, "").slice(0, 6));
+    if (invite) {
+      setCode(invite.replace(/\D/g, "").slice(0, 6));
+      setIsInvite(true);
+    }
     if (invitedGameMode === "kingdom" || invitedGameMode === "undercover")
       setGameMode(invitedGameMode);
     if (params.get("notice") === "closed")
@@ -161,8 +165,16 @@ export default function Home() {
           </p>
         )}
 
-        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
-          <section className="panel min-w-0 p-5 sm:p-6">
+        <div
+          className={`grid min-w-0 gap-5 ${
+            isInvite
+              ? "grid-cols-1"
+              : "lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]"
+          }`}
+        >
+          <section
+            className={`panel min-w-0 p-5 sm:p-6 ${isInvite ? "hidden" : ""}`}
+          >
             <div className="eyebrow mb-2">Host a game</div>
             <h2 className="text-2xl font-bold mb-5">Create a room</h2>
 
@@ -459,9 +471,17 @@ export default function Home() {
             </button>
           </section>
 
-          <section className="panel min-w-0 p-5 sm:p-6">
-            <div className="eyebrow mb-2">Join a game</div>
-            <h2 className="text-2xl font-bold mb-5">Enter the room</h2>
+          <section
+            className={`panel min-w-0 p-5 sm:p-6 ${isInvite ? "w-full max-w-xl mx-auto" : ""}`}
+          >
+            <div className="eyebrow mb-2">
+              {isInvite
+                ? `Join ${gameMode === "kingdom" ? "Secret Kingdom" : "Undercover"}`
+                : "Join a game"}
+            </div>
+            <h2 className="text-2xl font-bold mb-5">
+              {isInvite ? "Enter your name to join" : "Enter the room"}
+            </h2>
 
             <label htmlFor="nick" className="text-sm muted">
               Your nickname
@@ -497,7 +517,7 @@ export default function Home() {
               {busy ? "Joining…" : "Join game"}
             </button>
 
-            {gameMode === "undercover" ? (
+            {!isInvite && gameMode === "undercover" ? (
               <details className="mt-6 text-sm">
                 <summary className="font-bold text-[#ff8a9b]">
                   How to play Undercover ▾
@@ -531,7 +551,7 @@ export default function Home() {
                 </ol>
               </details>
             ) : null}
-            {gameMode === "kingdom" && <SecretKingdom />}
+            {!isInvite && gameMode === "kingdom" && <SecretKingdom />}
           </section>
         </div>
 

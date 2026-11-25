@@ -262,7 +262,8 @@ export default function Room() {
   const origin = (
     process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
   ).replace(/\/$/, "");
-  const joinUrl = `${origin}/?join=${encodeURIComponent(code)}&gameMode=${room.game_mode === "kingdom" ? "kingdom" : "undercover"}`;
+  const joinMode = room.game_mode === "kingdom" ? "kingdom" : "undercover";
+  const joinUrl = `${origin}/join/${joinMode}/${encodeURIComponent(code)}`;
   const kingdomRoleCounts =
     room.kingdom_role_counts || DEFAULT_KINGDOM_ROLE_COUNTS;
   const kingdomCount = room.kingdom_count || 2;
@@ -324,6 +325,12 @@ export default function Room() {
   });
   const result = state.result;
   const ownKingdom = kingdomTeam(assignment?.kingdom_team);
+  const placements = Array.isArray(result?.placements)
+    ? result.placements
+    : [];
+  const pendingPlacementCount = placements.filter(
+    (placement: any) => typeof placement.correct !== "boolean",
+  ).length;
   const guessPending =
     result?.guessStatus === "pending" || result?.guessStatus === "submitted";
 
@@ -1079,6 +1086,81 @@ export default function Room() {
                       ))}
                     </div>
                   </div>
+                  {placements.length > 0 && (
+                    <section className="mt-6">
+                      <div className="eyebrow mb-2">Host placement scoring</div>
+                      <p className="muted text-sm mb-3">
+                        Check where each player stood against their assigned
+                        kingdom. Correct placement earns +1; incorrect earns
+                        +0.
+                      </p>
+                      <div className="space-y-2">
+                        {placements.map((placement: any) => (
+                          <div key={placement.playerId} className="chip">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span>
+                                <b>{placement.name}</b>
+                                <span className={`text-xs ml-2 ${kingdomTeam(placement.team)?.text || "muted"}`}>
+                                  {kingdomTeam(placement.team)?.name || "Unknown"}{" "}
+                                  Kingdom
+                                </span>
+                              </span>
+                              <span
+                                className={`text-xs font-bold ${
+                                  placement.correct === true
+                                    ? "text-truth"
+                                    : placement.correct === false
+                                      ? "text-liar"
+                                      : "muted"
+                                }`}
+                              >
+                                {placement.correct === true
+                                  ? "Correct · +1"
+                                  : placement.correct === false
+                                    ? "Incorrect · +0"
+                                    : "Awaiting host review"}
+                              </span>
+                            </div>
+                            {state.isHost && (
+                              <div className="grid grid-cols-2 gap-2 mt-3">
+                                <button
+                                  className={`btn-ghost text-sm ${placement.correct === true ? "on" : ""}`}
+                                  disabled={busy || placement.correct === true}
+                                  onClick={() =>
+                                    act("judge-placement", {
+                                      playerId: placement.playerId,
+                                      correct: true,
+                                    })
+                                  }
+                                >
+                                  Correct · +1
+                                </button>
+                                <button
+                                  className={`btn-ghost text-sm ${placement.correct === false ? "on" : ""}`}
+                                  disabled={busy || placement.correct === false}
+                                  onClick={() =>
+                                    act("judge-placement", {
+                                      playerId: placement.playerId,
+                                      correct: false,
+                                    })
+                                  }
+                                >
+                                  Incorrect · +0
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {state.isHost && pendingPlacementCount > 0 && (
+                        <p className="muted text-xs mt-3">
+                          Review all {pendingPlacementCount} remaining
+                          {pendingPlacementCount === 1 ? " placement" : " placements"}{" "}
+                          before starting the next round.
+                        </p>
+                      )}
+                    </section>
+                  )}
                   <div className="mt-6">
                     <div className="eyebrow mb-3">Kingdom scoreboard</div>
                     <Scoreboard
@@ -1092,10 +1174,12 @@ export default function Room() {
                   {state.isHost ? (
                     <button
                       className="btn w-full mt-6"
-                      disabled={busy}
+                      disabled={busy || pendingPlacementCount > 0}
                       onClick={() => act("next")}
                     >
-                      Back to lobby / next round
+                      {pendingPlacementCount > 0
+                        ? `Review placements (${pendingPlacementCount} remaining)`
+                        : "Back to lobby / next round"}
                     </button>
                   ) : (
                     <p className="muted text-sm mt-6">
