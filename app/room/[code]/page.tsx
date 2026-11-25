@@ -51,6 +51,7 @@ type State = {
     target_team?: string | null;
   } | null;
   playerId: string | null;
+  myKingdomTeam: string | null;
   myKingdomChoice: string | null;
   isHost: boolean;
   myVote: string | null;
@@ -261,7 +262,7 @@ export default function Room() {
   const origin = (
     process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
   ).replace(/\/$/, "");
-  const joinUrl = `${origin}/?join=${code}`;
+  const joinUrl = `${origin}/?join=${encodeURIComponent(code)}&gameMode=${room.game_mode === "kingdom" ? "kingdom" : "undercover"}`;
   const kingdomRoleCounts =
     room.kingdom_role_counts || DEFAULT_KINGDOM_ROLE_COUNTS;
   const kingdomCount = room.kingdom_count || 2;
@@ -416,6 +417,15 @@ export default function Room() {
                         {p.team && (
                           <span className={`text-xs ml-1 ${teamColor(p.team)}`}>
                             · {p.team}
+                          </span>
+                        )}
+                        {room.game_mode === "kingdom" &&
+                          p.id === state.playerId &&
+                          state.myKingdomTeam && (
+                          <span
+                            className={`text-xs ml-1 ${kingdomTeam(state.myKingdomTeam)?.text || "muted"}`}
+                          >
+                            · {kingdomTeam(state.myKingdomTeam)?.name} Kingdom
                           </span>
                         )}
                       </span>
@@ -721,74 +731,63 @@ export default function Room() {
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="eyebrow">
-                    Secret Kingdom · Round {room.round} · Kingdom choice
+                    Secret Kingdom · Round {room.round} · Role missions
                   </div>
                   <PhaseTimer
                     since={state.phaseStartedAt}
                     offset={offset}
-                    label="Choosing"
+                    label="Missions"
                   />
                 </div>
                 <h2 className="mt-2 text-2xl font-black">
-                  Which kingdom do you belong to?
+                  Your kingdom is already assigned
                 </h2>
                 <p className="muted mt-2 text-sm">
-                  Choose carefully. You are not allowed to mention your team
-                  colour or show your card.
+                  Keep your color and role secret. Complete your role mission
+                  before the host reveals the round.
                 </p>
                 {assignment?.role && (
-                  <p className="mt-3 text-sm">
-                    <b>
-                      {
-                        KINGDOM_ROLES[
-                          assignment.role as keyof typeof KINGDOM_ROLES
-                        ]?.icon
-                      }{" "}
-                      Your role:
-                    </b>{" "}
-                    {
-                      KINGDOM_ROLES[
+                  <div className={`chip mt-4 flex flex-wrap items-center justify-between gap-2 ${kingdomTeam(assignment.kingdom_team)?.border} ${kingdomTeam(assignment.kingdom_team)?.background}`}>
+                    <span className={`font-black ${kingdomTeam(assignment.kingdom_team)?.text}`}>
+                      {kingdomTeam(assignment.kingdom_team)?.name} Kingdom
+                    </span>
+                    <span>
+                      {KINGDOM_ROLES[
                         assignment.role as keyof typeof KINGDOM_ROLES
-                      ]?.label
-                    }
-                  </p>
+                      ]?.icon}{" "}
+                      {KINGDOM_ROLES[
+                        assignment.role as keyof typeof KINGDOM_ROLES
+                      ]?.label}
+                    </span>
+                  </div>
                 )}
-                <div className="grid gap-3 mt-5 sm:grid-cols-2">
-                  {KINGDOM_TEAMS.slice(0, kingdomCount).map((kingdom) => {
-                      const chosen =
-                        state.myKingdomChoice === kingdom.id ||
-                        target === kingdom.id;
-                      return (
-                        <button
-                          key={kingdom.id}
-                          disabled={!!state.myKingdomChoice || busy}
-                          aria-pressed={chosen}
-                          onClick={() => setTarget(kingdom.id)}
-                          className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""} ${kingdom.border} ${kingdom.background}`}
-                        >
-                          <div className="text-xs tracking-widest muted">
-                            CHOOSE A KINGDOM
-                          </div>
-                          <div className={`mt-1 text-2xl font-black ${kingdom.text}`}>
-                            {kingdom.name}
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-                {state.playerId && !state.myKingdomChoice ? (
-                  <button
-                    className="btn w-full mt-5"
-                    disabled={!target || busy}
-                    onClick={() => act("kingdom-choice", { team: target })}
-                  >
-                    Lock in kingdom
-                  </button>
-                ) : state.playerId ? (
-                  <p className="text-truth font-bold text-center mt-5">
-                    ✓ Kingdom locked in
-                  </p>
-                ) : null}
+                {assignment?.role === "joker" && state.playerId && (
+                  <div className="chip mt-5 !p-4">
+                    <div className="eyebrow mb-2">Joker mission</div>
+                    <p className="muted text-sm">
+                      Infiltrate the kingdom shown by your target card.
+                    </p>
+                    {state.myKingdomChoice ? (
+                      <p className="text-truth font-bold mt-3">
+                        ✓ Infiltration target locked
+                      </p>
+                    ) : (
+                      <button
+                        className="btn-ghost w-full mt-3"
+                        disabled={busy || !assignment.target_team}
+                        onClick={() =>
+                          act("kingdom-choice", {
+                            team: assignment.target_team,
+                          })
+                        }
+                      >
+                        Infiltrate{" "}
+                        {kingdomTeam(assignment.target_team)?.name || "target"}{" "}
+                        Kingdom
+                      </button>
+                    )}
+                  </div>
+                )}
                 {assignment?.role === "assassin" && state.playerId && (
                   <div className="chip mt-6 !p-4">
                     <div className="eyebrow mb-2">Assassin mission</div>
@@ -804,7 +803,10 @@ export default function Room() {
                       <>
                         <div className="grid gap-2 mt-3 sm:grid-cols-2">
                           {state.players
-                            .filter((p) => p.id !== state.playerId)
+                            .filter(
+                              (p) =>
+                                p.id !== state.playerId,
+                            )
                             .map((p) => (
                               <button
                                 key={p.id}
@@ -831,6 +833,12 @@ export default function Room() {
                       </>
                     )}
                   </div>
+                )}
+                {!state.playerId && state.isHost && (
+                  <p className="muted mt-5 text-sm">
+                    You&apos;re hosting without playing. The kingdom colors are
+                    assigned; reveal when missions are complete.
+                  </p>
                 )}
                 {state.isHost && (
                   <button
@@ -994,10 +1002,6 @@ export default function Room() {
                         <div className="mt-2 text-sm muted">
                           Members: {kingdom.members.join(" · ")}
                         </div>
-                        <div className="mt-1 text-xs muted">
-                          Chose this kingdom:{" "}
-                          {kingdom.chosenBy.join(", ") || "Nobody"}
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1050,8 +1054,8 @@ export default function Room() {
                         >
                           <span>
                             <b>{role.name}</b>
-                            <span className="muted text-xs ml-2">
-                              Kingdom {role.team}
+                            <span className={`text-xs ml-2 ${kingdomTeam(role.team)?.text || "muted"}`}>
+                              {kingdomTeam(role.team)?.name || "Unknown"} Kingdom
                             </span>
                           </span>
                           <span>

@@ -58,11 +58,11 @@ export function SecretKingdom() {
       <summary className="font-bold text-amber">Secret Kingdom rules ▾</summary>
       <div className="mt-4 space-y-5 text-sm">
         <p className="muted">
-          Each kingdom has its own related topic and word. Only its King knows
-          the topic; citizens and Assassins receive a related word. At the end
-          of the round, everyone chooses a kingdom. The host can set how many
-          Assassins and Jokers are assigned to each kingdom; remaining players
-          become Citizens.
+          Players are assigned to a named, color-coded kingdom when they join,
+          and keep that kingdom between rounds. Each kingdom has its own related
+          topic and word. Only its King knows the topic; citizens and Assassins
+          receive a related word. The host can set how many Assassins and Jokers
+          are assigned to each kingdom; remaining players become Citizens.
         </p>
 
         <div className="rounded-2xl border border-amber/30 bg-amber/5 p-4">
@@ -92,22 +92,21 @@ export function SecretKingdom() {
           <div className="eyebrow mb-3">End of each round</div>
           <ol className="muted space-y-1.5 list-decimal pl-5">
             <li>
-              Everyone chooses the kingdom they believe they belong to. Jokers
-              choose their assigned target kingdom.
+              Your assigned kingdom stays the same throughout the game.
             </li>
             <li>
-              Assassins lock one guess at a player they believe is an opposing
-              King.
+              Assassins lock one guess at a player from another kingdom they
+              believe is a King.
             </li>
-            <li>Kings, roles, topics, and words are revealed.</li>
-            <li>Infiltration and role-based points are scored.</li>
+            <li>Jokers lock their assigned target as their infiltration attempt.</li>
+            <li>Kings, roles, topics, words, and mission results are revealed.</li>
           </ol>
         </section>
 
         <section>
           <div className="eyebrow mb-3">Scoring each round</div>
           <ul className="muted space-y-1.5 list-disc pl-5">
-            <li>Choose your actual kingdom: +1 point.</li>
+            <li>Everyone receives +1 participation point.</li>
             <li>Assassin correctly identifies an opposing King: +2 points.</li>
             <li>Joker chooses their assigned target kingdom: +2 points.</li>
           </ul>

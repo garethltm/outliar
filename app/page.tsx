@@ -103,7 +103,10 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const invite = params.get("join");
+    const invitedGameMode = params.get("gameMode");
     if (invite) setCode(invite.replace(/\D/g, "").slice(0, 6));
+    if (invitedGameMode === "kingdom" || invitedGameMode === "undercover")
+      setGameMode(invitedGameMode);
     if (params.get("notice") === "closed")
       setNotice("That room has closed, or you were removed from it.");
     setName(loadName());

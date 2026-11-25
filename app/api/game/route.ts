@@ -50,6 +50,20 @@ function pickTeam(players: { team: string | null }[]) {
   return a <= b ? "A" : "B";
 }
 
+function pickKingdomTeam(
+  players: { kingdom_team: string | null }[],
+  kingdomCount: number,
+) {
+  const teams = KINGDOM_IDS.slice(0, kingdomCount);
+  const counts = teams.map((team) => ({
+    team,
+    count: players.filter((player) => player.kingdom_team === team).length,
+  }));
+  return counts.reduce((least, current) =>
+    current.count < least.count ? current : least,
+  ).team;
+}
+
 async function addPlayer(
   db: Db,
   room: any,
@@ -58,7 +72,7 @@ async function addPlayer(
 ): Promise<{ error: string } | { player: any }> {
   const { data: existing } = await db
     .from("players")
-    .select("id,name,team")
+    .select("id,name,team,kingdom_team")
     .eq("room_id", room.id);
   const list = existing || [];
   if (list.length >= room.max_players) return { error: "This room is full." };
@@ -77,8 +91,12 @@ async function addPlayer(
         room.game_mode !== "kingdom" && room.mode === "teams"
           ? pickTeam(list as any)
           : null,
+      kingdom_team:
+        room.game_mode === "kingdom"
+          ? pickKingdomTeam(list as any, room.kingdom_count || 2)
+          : null,
     })
-    .select("id,name,team")
+    .select("id,name,team,kingdom_team")
     .single();
   if (error) throw error;
   return { player };
@@ -288,8 +306,10 @@ export async function POST(req: NextRequest) {
       const { data: players } = await db
         .from("players")
         .select(
-          room.game_mode === "kingdom" && room.status === "voting"
-            ? "id,name,team,joined_at"
+          room.game_mode === "kingdom"
+            ? room.status === "voting"
+              ? "id,name,team,joined_at"
+              : "id,name,team,kingdom_choice,joined_at"
             : "id,name,team,kingdom_choice,joined_at",
         )
         .eq("room_id", room.id)
@@ -430,6 +450,7 @@ export async function POST(req: NextRequest) {
         players: roster,
         assignment,
         playerId: player?.id || null,
+        myKingdomTeam: player?.kingdom_team ?? null,
         myKingdomChoice: player?.kingdom_choice ?? null,
         isHost,
         myVote,
@@ -613,7 +634,7 @@ export async function POST(req: NextRequest) {
         return fail("A round is already in progress.");
       const { data: players } = await db
         .from("players")
-        .select("id,team")
+        .select("id,team,kingdom_team")
         .eq("room_id", room.id);
       const list = players || [];
       const kingdomRoleCounts = parseKingdomRoleCounts(
@@ -629,6 +650,53 @@ export async function POST(req: NextRequest) {
             : null
           : startRequirement(room.mode, room.imposter_count, list as any);
       if (problem) return fail(problem);
+
+      const kingdomCount = room.kingdom_count || 2;
+      if (room.game_mode === "kingdom") {
+        const kingdomIds = KINGDOM_IDS.slice(0, kingdomCount);
+        for (const player of shuffle(
+          list.filter((person: any) => !kingdomIds.includes(person.kingdom_team)),
+        )) {
+          const kingdomTeam = pickKingdomTeam(list as any, kingdomCount);
+          const { data: updated, error: teamError } = await db
+            .from("players")
+            .update({ kingdom_team: kingdomTeam })
+            .eq("id", player.id)
+            .eq("room_id", room.id)
+            .is("kingdom_team", null)
+            .select("kingdom_team")
+            .maybeSingle();
+          if (teamError) throw teamError;
+          if (updated) {
+            player.kingdom_team = updated.kingdom_team;
+          } else {
+            const { data: current, error: currentError } = await db
+              .from("players")
+              .select("kingdom_team")
+              .eq("id", player.id)
+              .eq("room_id", room.id)
+              .maybeSingle();
+            if (currentError) throw currentError;
+            if (!current?.kingdom_team)
+              return fail("Could not assign a Kingdom color to every player.");
+            player.kingdom_team = current.kingdom_team;
+          }
+        }
+
+        const minimumPerKingdom =
+          2 + kingdomRoleCounts.assassin + kingdomRoleCounts.joker;
+        if (
+          kingdomIds.some(
+            (team) =>
+              list.filter((person: any) => person.kingdom_team === team)
+                .length < minimumPerKingdom,
+          )
+        ) {
+          return fail(
+            `Each kingdom needs at least ${minimumPerKingdom} players with these role counts.`,
+          );
+        }
+      }
 
       const used = new Set<string>();
       const usedTopics = new Set<string>();
@@ -692,8 +760,6 @@ export async function POST(req: NextRequest) {
 
       let rows: any[];
       if (room.game_mode === "kingdom") {
-        const kingdomOrder = shuffle(list);
-        const kingdomCount = room.kingdom_count || 2;
         const kingdomIds = KINGDOM_IDS.slice(0, kingdomCount);
         const teams: Record<string, any[]> = {};
         const topicsByTeam: Record<
@@ -706,13 +772,13 @@ export async function POST(req: NextRequest) {
           used,
         );
         kingdomIds.forEach((id, index) => {
-          teams[id] = kingdomOrder.filter(
-            (_: any, i: number) => i % kingdomCount === index,
+          teams[id] = shuffle(
+            list.filter((person: any) => person.kingdom_team === id),
           );
           topicsByTeam[id] = selectedTopics[index];
         });
         rows = kingdomIds.flatMap((team) => {
-          const kingdomPlayers = shuffle(teams[team]);
+          const kingdomPlayers = teams[team];
           const topic = topicsByTeam[team];
           const roleByPlayer = new Map<string, KingdomRole>();
           let index = 0;
@@ -845,9 +911,6 @@ export async function POST(req: NextRequest) {
                 )
                 .filter(Boolean)
                 .map((person: any) => person.name),
-              chosenBy: ppl
-                .filter((person: any) => person.kingdom_choice === team)
-                .map((person: any) => person.name),
             };
           },
         );
@@ -882,16 +945,13 @@ export async function POST(req: NextRequest) {
           }));
         const points = ppl.map((person: any) => {
           const assignment = roleByPlayer.get(person.id);
-          let score = 0;
-          const notes: string[] = [];
+          let score = KINGDOM_SCORING.roundParticipation;
+          const notes: string[] = ["Round participation"];
           if (assignment?.role === "joker") {
             if (person.kingdom_choice === assignment.target_team) {
               score += KINGDOM_SCORING.jokerInfiltrates;
               notes.push("Infiltrated the target kingdom");
             }
-          } else if (person.kingdom_choice === assignment?.kingdom_team) {
-            score += KINGDOM_SCORING.correctKingdomChoice;
-            notes.push("Found the right kingdom");
           }
           const guessedKing = guessByAssassin.get(person.id);
           if (assignment?.role === "assassin" && guessedKing) {
@@ -1055,6 +1115,16 @@ export async function POST(req: NextRequest) {
       if (room.status !== "voting")
         return fail("Kingdom choices can only be made during voting.");
       if (!player) return fail("Only a player can choose a kingdom.", 403);
+      const { data: assignment, error: assignmentError } = await db
+        .from("assignments")
+        .select("role")
+        .eq("room_id", room.id)
+        .eq("player_id", player.id)
+        .eq("round", room.round)
+        .maybeSingle();
+      if (assignmentError) throw assignmentError;
+      if (assignment?.role !== "joker")
+        return fail("Only a Joker can choose an infiltration target.", 403);
       const kingdomCount = room.kingdom_count || 2;
       const validTeams = ["A", "B", "C", "D"].slice(0, kingdomCount);
       const choice = validTeams.includes(data.team) ? data.team : null;

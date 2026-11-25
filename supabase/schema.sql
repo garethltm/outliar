@@ -23,7 +23,7 @@ create table if not exists public.rooms (
 );
 create table if not exists public.players (
  id uuid primary key default gen_random_uuid(), room_id uuid not null references public.rooms(id) on delete cascade,
- name text not null, team text check (team in ('A','B')), kingdom_choice text check (kingdom_choice in ('A','B','C','D')), token_hash text not null,
+ name text not null, team text check (team in ('A','B')), kingdom_team text check (kingdom_team is null or kingdom_team in ('A','B','C','D')), kingdom_choice text check (kingdom_choice in ('A','B','C','D')), token_hash text not null,
  joined_at timestamptz not null default now(), unique(room_id,token_hash)
 );
 create table if not exists public.assignments (
