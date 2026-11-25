@@ -345,6 +345,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         room: {
           code: room.code,
+          game_mode: room.game_mode || "undercover",
+          kingdom_count: room.kingdom_count || 2,
           mode: room.mode,
           max_players: room.max_players,
           imposter_count: room.imposter_count,

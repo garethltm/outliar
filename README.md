@@ -43,8 +43,8 @@ Fill `.env.local` (Supabase URL, anon key, service-role key, a random `TOKEN_SEC
 
 ## 2. Set up Supabase
 - **New project:** SQL Editor → run `supabase/schema.sql`.
-- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first, then `supabase/migration-v3.sql`, `supabase/migration-v5.sql`, and `supabase/migration-v6.sql`.
-- **Already running an earlier outLIAR schema:** SQL Editor → run `supabase/migration-v5.sql` and `supabase/migration-v6.sql` to update the selectable word topics. Run `supabase/migration-v3.sql` as well if you have not already applied it.
+- **Already running the original UNDERCOVER version:** SQL Editor → run `supabase/migration-v2.sql` first, then `supabase/migration-v3.sql`, `supabase/migration-v5.sql`, `supabase/migration-v6.sql`, and `supabase/migration-v7.sql`.
+- **Already running an earlier outLIAR schema:** SQL Editor → run `supabase/migration-v5.sql` and `supabase/migration-v6.sql` to update the selectable word topics. Run `supabase/migration-v3.sql` as well if you have not already applied it, then run `supabase/migration-v7.sql`.
 - Keep the service-role key private — never prefix it with `NEXT_PUBLIC_`.
 
 ## 3. Run locally

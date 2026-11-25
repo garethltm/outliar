@@ -1212,7 +1212,7 @@ export default function Room() {
                 <b className="text-right capitalize">{room.status}</b>
               </div>
             </div>
-            <SecretKingdom />
+            {room.game_mode === "kingdom" && <SecretKingdom />}
           </aside>
         </div>
 
