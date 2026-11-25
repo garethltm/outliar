@@ -4,22 +4,22 @@ const roles = [
   {
     icon: "👑",
     name: "King",
-    text: "Blend in with your citizens, identify them, and gather everyone into your kingdom. Watch for the opposing Assassin.",
+    text: "The only player who knows their kingdom's secret topic. Give clues that help your citizens recognize the right word.",
   },
   {
     icon: "🗡️",
     name: "Assassin",
-    text: "Identify the opposing kingdom’s King. Successfully identifying them earns points for your kingdom.",
+    text: "You receive your kingdom's normal word. Make one guess at which player is the King of another kingdom.",
   },
   {
     icon: "🃏",
     name: "Joker",
-    text: "Infiltrate the opposing kingdom using a hint about their topic. Create a fitting word and avoid discovery.",
+    text: "You receive a hint about an opposing kingdom's topic, but no assigned word. Choose a fitting word and try to infiltrate that kingdom.",
   },
   {
     icon: "🛡️",
     name: "Citizen",
-    text: "Find your King and help them identify you. Describe or act out your assigned word without revealing the kingdom.",
+    text: "You receive a word related to your King's secret topic. Use it to find your King without revealing your kingdom.",
   },
 ] as const;
 
@@ -58,9 +58,11 @@ export function SecretKingdom() {
       <summary className="font-bold text-amber">Secret Kingdom rules ▾</summary>
       <div className="mt-4 space-y-5 text-sm">
         <p className="muted">
-          Find and stand with the correct kingdom when each round ends. Your
-          team colour appears on your card, but hidden roles and misleading
-          behaviour make every choice uncertain.
+          Each kingdom has its own related topic and word. Only its King knows
+          the topic; citizens and Assassins receive a related word. At the end
+          of the round, everyone chooses a kingdom. The host can set how many
+          Assassins and Jokers are assigned to each kingdom; remaining players
+          become Citizens.
         </p>
 
         <div className="rounded-2xl border border-amber/30 bg-amber/5 p-4">
@@ -90,12 +92,25 @@ export function SecretKingdom() {
           <div className="eyebrow mb-3">End of each round</div>
           <ol className="muted space-y-1.5 list-decimal pl-5">
             <li>
-              Everyone chooses their believed kingdom and forms a separate line.
+              Everyone chooses the kingdom they believe they belong to. Jokers
+              choose their assigned target kingdom.
             </li>
-            <li>The Kings and Assassins are revealed.</li>
-            <li>The Joker&apos;s infiltration success is checked.</li>
-            <li>Kingdom points are awarded.</li>
+            <li>
+              Assassins lock one guess at a player they believe is an opposing
+              King.
+            </li>
+            <li>Kings, roles, topics, and words are revealed.</li>
+            <li>Infiltration and role-based points are scored.</li>
           </ol>
+        </section>
+
+        <section>
+          <div className="eyebrow mb-3">Scoring each round</div>
+          <ul className="muted space-y-1.5 list-disc pl-5">
+            <li>Choose your actual kingdom: +1 point.</li>
+            <li>Assassin correctly identifies an opposing King: +2 points.</li>
+            <li>Joker chooses their assigned target kingdom: +2 points.</li>
+          </ul>
         </section>
 
         <section>

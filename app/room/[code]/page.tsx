@@ -19,10 +19,19 @@ import { speakingOrder } from "@/lib/order";
 import { startRequirement } from "@/lib/rules";
 import {
   DEFAULT_WORD_CATEGORIES,
+  isWordCategory,
+  WORD_CATEGORIES,
   wordCategoryLabel,
+  type WordCategory,
 } from "@/lib/word-categories";
 import { SecretKingdom } from "@/components/SecretKingdom";
-import { KINGDOM_ROLES, kingdomRoundName } from "@/lib/kingdom";
+import {
+  DEFAULT_KINGDOM_ROLE_COUNTS,
+  KINGDOM_ROLES,
+  KINGDOM_TEAMS,
+  kingdomRoundName,
+  kingdomTeam,
+} from "@/lib/kingdom";
 
 type Player = {
   id: string;
@@ -39,8 +48,10 @@ type State = {
     role?: string;
     kingdom_team?: string;
     hint?: string;
+    target_team?: string | null;
   } | null;
   playerId: string | null;
+  myKingdomChoice: string | null;
   isHost: boolean;
   myVote: string | null;
   votedIds: string[];
@@ -52,6 +63,12 @@ type State = {
   serverTime: number;
 };
 
+const TOPIC_GROUPS = [
+  { id: "everyday", label: "Everyday topics" },
+  { id: "bible", label: "Bible topics" },
+  { id: "wildcard", label: "Wildcard topics" },
+] as const;
+
 export default function Room() {
   const params = useParams();
   const code = String(params.code);
@@ -62,10 +79,20 @@ export default function Room() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState("");
+  const [assassinTarget, setAssassinTarget] = useState("");
   const [guess, setGuess] = useState("");
   const [peek, setPeek] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hostName, setHostName] = useState("");
+  const [topicDraft, setTopicDraft] =
+    useState<WordCategory[]>(DEFAULT_WORD_CATEGORIES);
+  const serverTopicsKey = (
+    state?.room.word_categories || DEFAULT_WORD_CATEGORIES
+  ).join(",");
+
+  useEffect(() => {
+    setTopicDraft(serverTopicsKey.split(",").filter(isWordCategory));
+  }, [serverTopicsKey]);
 
   useEffect(() => {
     const s = loadSession();
@@ -122,6 +149,7 @@ export default function Room() {
   useEffect(() => {
     setPeek(false);
     setTarget("");
+    setAssassinTarget("");
     setGuess("");
   }, [round, status]);
 
@@ -130,6 +158,29 @@ export default function Room() {
       state ? speakingOrder(state.players, code + ":" + state.room.round) : [],
     [state?.players, state?.room.round, code],
   ); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleTopic(category: WordCategory) {
+    setTopicDraft((selected) =>
+      selected.includes(category)
+        ? selected.filter((item) => item !== category)
+        : [...selected, category],
+    );
+  }
+
+  function toggleTopicGroup(group: (typeof TOPIC_GROUPS)[number]["id"]) {
+    const categoryIds = WORD_CATEGORIES.filter(
+      (category) => category.group === group,
+    ).map((category) => category.id);
+    const categorySet = new Set<WordCategory>(categoryIds);
+    const allSelected = categoryIds.every((category) =>
+      topicDraft.includes(category),
+    );
+    setTopicDraft((selected) =>
+      allSelected
+        ? selected.filter((category) => !categorySet.has(category))
+        : [...new Set([...selected, ...categoryIds])],
+    );
+  }
 
   async function act(action: string, extra: Record<string, unknown> = {}) {
     if (!session) return;
@@ -201,15 +252,25 @@ export default function Room() {
     );
 
   const room = state.room;
+  const savedTopicsKey = [...(room.word_categories || DEFAULT_WORD_CATEGORIES)]
+    .sort()
+    .join(",");
+  const draftTopicsKey = [...topicDraft].sort().join(",");
+  const hasTopicChanges = savedTopicsKey !== draftTopicsKey;
   const me = state.players.find((p) => p.id === state.playerId) || null;
   const origin = (
     process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
   ).replace(/\/$/, "");
   const joinUrl = `${origin}/?join=${code}`;
+  const kingdomRoleCounts =
+    room.kingdom_role_counts || DEFAULT_KINGDOM_ROLE_COUNTS;
+  const kingdomCount = room.kingdom_count || 2;
+  const kingdomMinimum =
+    kingdomCount * (2 + kingdomRoleCounts.assassin + kingdomRoleCounts.joker);
   const problem =
     room.game_mode === "kingdom"
-      ? state.players.length < (room.kingdom_count || 2) * 4
-        ? `Secret Kingdom needs ${(room.kingdom_count || 2) * 4} players for ${room.kingdom_count || 2} kingdoms (4 players per kingdom).`
+      ? state.players.length < kingdomMinimum
+        ? `Secret Kingdom needs at least ${kingdomMinimum} players with these role counts.`
         : null
       : startRequirement(room.mode, room.imposter_count, state.players);
   const allVoted =
@@ -261,11 +322,14 @@ export default function Room() {
     gained[p.id] = p.points;
   });
   const result = state.result;
+  const ownKingdom = kingdomTeam(assignment?.kingdom_team);
   const guessPending =
     result?.guessStatus === "pending" || result?.guessStatus === "submitted";
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-5 sm:py-8">
+    <main
+      className={`min-h-screen px-4 py-6 sm:px-5 sm:py-8 ${room.game_mode === "kingdom" ? "kingdom-theme" : ""}`}
+    >
       <div className="max-w-5xl mx-auto min-w-0">
         <header className="flex flex-wrap justify-between items-center gap-3 mb-7">
           <Logo size={30} />
@@ -315,17 +379,31 @@ export default function Room() {
                 <p className="muted mt-4 text-sm">
                   {state.players.length} / {room.max_players} joined ·{" "}
                   {room.game_mode === "kingdom"
-                    ? `Secret Kingdom · ${room.kingdom_count || 2} kingdoms`
+                    ? `Secret Kingdom · ${kingdomCount} kingdoms · ${kingdomRoleCounts.assassin} Assassins and ${kingdomRoleCounts.joker} Jokers per kingdom`
                     : `${room.mode === "teams" ? "Team showdown" : "Individual"} · ${room.imposter_count} ${nounLiars}${room.mode === "teams" ? " per team" : ""}`}
                 </p>
-                <p className="muted mt-1 text-xs">
+                {room.game_mode === "undercover" && (
+                  <p className="muted mt-1 text-xs">
                   Word mix:{" "}
                   <span className="break-words">
                     {(room.word_categories || DEFAULT_WORD_CATEGORIES)
                       .map(wordCategoryLabel)
                       .join(", ")}
                   </span>
-                </p>
+                  </p>
+                )}
+                {room.game_mode === "kingdom" && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {KINGDOM_TEAMS.slice(0, kingdomCount).map((kingdom) => (
+                      <span
+                        key={kingdom.id}
+                        className={`chip !px-2.5 !py-1 text-xs font-bold ${kingdom.text} ${kingdom.border} ${kingdom.background}`}
+                      >
+                        {kingdom.name} Kingdom
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                   {state.players.map((p) => (
@@ -404,7 +482,9 @@ export default function Room() {
                     <Scoreboard
                       rows={state.scoreboard}
                       teamScores={state.teamScores}
-                      mode={room.mode}
+                      mode={
+                        room.game_mode === "kingdom" ? "individual" : room.mode
+                      }
                       meId={state.playerId}
                     />
                   </div>
@@ -450,10 +530,10 @@ export default function Room() {
                     />
                   </div>
                   <div
-                    className={`mt-4 rounded-2xl border p-5 ${assignment.kingdom_team === "A" ? "border-amber/50 bg-amber/5" : "border-[#6ec6ff]/50 bg-[#6ec6ff]/5"}`}
+                    className={`mt-4 rounded-2xl border p-5 ${ownKingdom?.border || "border-[#34364c]"} ${ownKingdom?.background || "bg-[#0b0c15]"}`}
                   >
                     <div className="text-xs tracking-widest muted">
-                      KINGDOM {assignment.kingdom_team}
+                      {ownKingdom?.name || "Your"} KINGDOM
                     </div>
                     <h2 className="mt-2 text-3xl font-black">
                       {assignment.role
@@ -468,12 +548,26 @@ export default function Room() {
                         : ""}
                     </h2>
                     {assignment.role === "joker" ? (
-                      <p className="mt-3 text-lg">
-                        <span className="muted">Opposing topic:</span>{" "}
-                        <b className="text-amber">
-                          {assignment.hint || "Unknown"}
-                        </b>
-                      </p>
+                      <div className="mt-3 space-y-2">
+                        <p className="text-sm">
+                          <span className="muted">Infiltration target:</span>{" "}
+                          <b className={kingdomTeam(assignment.target_team)?.text}>
+                            {kingdomTeam(assignment.target_team)?.name ||
+                              "Opposing"}{" "}
+                            Kingdom
+                          </b>
+                        </p>
+                        <p className="text-lg">
+                          <span className="muted">Topic hint:</span>{" "}
+                          <b className="text-amber">
+                            {assignment.hint || "Unknown"}
+                          </b>
+                        </p>
+                        <p className="muted text-sm">
+                          Choose any word that fits the hint. At the end of the
+                          round, choose your target kingdom to infiltrate it.
+                        </p>
+                      </div>
                     ) : assignment.word ? (
                       <div
                         role="button"
@@ -481,7 +575,11 @@ export default function Room() {
                         {...peekHandlers}
                         className="peek mt-4 rounded-xl border border-[#34364c] bg-[#0b0c15] p-5 text-center"
                       >
-                        <div className="muted text-xs">ASSIGNED WORD</div>
+                        <div className="muted text-xs">
+                          {assignment.role === "king"
+                            ? "YOUR KINGDOM'S SECRET TOPIC"
+                            : "YOUR ASSIGNED WORD"}
+                        </div>
                         <div className="mt-2 text-3xl font-black text-[#ffb3be]">
                           {peek ? assignment.word : "••••••••"}
                         </div>
@@ -656,32 +754,29 @@ export default function Room() {
                   </p>
                 )}
                 <div className="grid gap-3 mt-5 sm:grid-cols-2">
-                  {(["A", "B", "C", "D"] as const)
-                    .slice(0, room.kingdom_count || 2)
-                    .map((team) => {
-                      const meChoice = state.players.find(
-                        (p) => p.id === state.playerId,
-                      )?.kingdom_choice;
-                      const chosen = meChoice === team || target === team;
+                  {KINGDOM_TEAMS.slice(0, kingdomCount).map((kingdom) => {
+                      const chosen =
+                        state.myKingdomChoice === kingdom.id ||
+                        target === kingdom.id;
                       return (
                         <button
-                          key={team}
-                          disabled={!!meChoice || busy}
+                          key={kingdom.id}
+                          disabled={!!state.myKingdomChoice || busy}
                           aria-pressed={chosen}
-                          onClick={() => setTarget(team)}
-                          className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""}`}
+                          onClick={() => setTarget(kingdom.id)}
+                          className={`btn-ghost !p-5 text-center ${chosen ? "on" : ""} ${kingdom.border} ${kingdom.background}`}
                         >
                           <div className="text-xs tracking-widest muted">
-                            KINGDOM
+                            CHOOSE A KINGDOM
                           </div>
-                          <div className="mt-1 text-3xl font-black">{team}</div>
+                          <div className={`mt-1 text-2xl font-black ${kingdom.text}`}>
+                            {kingdom.name}
+                          </div>
                         </button>
                       );
                     })}
                 </div>
-                {state.playerId &&
-                !state.players.find((p) => p.id === state.playerId)
-                  ?.kingdom_choice ? (
+                {state.playerId && !state.myKingdomChoice ? (
                   <button
                     className="btn w-full mt-5"
                     disabled={!target || busy}
@@ -694,6 +789,49 @@ export default function Room() {
                     ✓ Kingdom locked in
                   </p>
                 ) : null}
+                {assignment?.role === "assassin" && state.playerId && (
+                  <div className="chip mt-6 !p-4">
+                    <div className="eyebrow mb-2">Assassin mission</div>
+                    <p className="muted text-sm">
+                      Choose the player you believe is a King from another
+                      kingdom. You get one guess.
+                    </p>
+                    {state.myVote ? (
+                      <p className="text-truth font-bold mt-3">
+                        ✓ Assassin guess locked
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid gap-2 mt-3 sm:grid-cols-2">
+                          {state.players
+                            .filter((p) => p.id !== state.playerId)
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                disabled={busy}
+                                aria-pressed={assassinTarget === p.id}
+                                onClick={() => setAssassinTarget(p.id)}
+                                className={`btn-ghost text-left ${assassinTarget === p.id ? "on" : ""}`}
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                        </div>
+                        <button
+                          className="btn-ghost w-full mt-3"
+                          disabled={!assassinTarget || busy}
+                          onClick={() =>
+                            act("kingdom-assassin-target", {
+                              targetId: assassinTarget,
+                            })
+                          }
+                        >
+                          Lock Assassin guess
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
                 {state.isHost && (
                   <button
                     className="btn w-full mt-5"
@@ -839,20 +977,69 @@ export default function Room() {
                     {(result.kingdoms || []).map((kingdom: any) => (
                       <div
                         key={kingdom.team}
-                        className={`chip p-4 ${kingdom.team === "A" ? "border-amber/50" : "border-[#6ec6ff]/50"}`}
+                        className={`chip p-4 ${kingdomTeam(kingdom.team)?.border} ${kingdomTeam(kingdom.team)?.background}`}
                       >
-                        <div className="text-xs tracking-widest muted">
-                          KINGDOM {kingdom.team}
+                        <div className={`text-xs tracking-widest font-bold ${kingdomTeam(kingdom.team)?.text}`}>
+                          {kingdom.name} KINGDOM
                         </div>
                         <div className="mt-2 font-black">
                           👑 {kingdom.king || "King unknown"}
                         </div>
+                        <p className="mt-2 text-sm">
+                          Secret topic: <b>{kingdom.topic || "Unknown"}</b>
+                        </p>
+                        <p className="mt-1 text-sm">
+                          Citizen word: <b>{kingdom.word || "Unknown"}</b>
+                        </p>
                         <div className="mt-2 text-sm muted">
-                          {kingdom.members.map((p: any) => p.name).join(" · ")}
+                          Members: {kingdom.members.join(" · ")}
+                        </div>
+                        <div className="mt-1 text-xs muted">
+                          Chose this kingdom:{" "}
+                          {kingdom.chosenBy.join(", ") || "Nobody"}
                         </div>
                       </div>
                     ))}
                   </div>
+                  {result.assassinGuesses?.length > 0 && (
+                    <section className="mt-5">
+                      <div className="eyebrow mb-3">Assassin guesses</div>
+                      <div className="space-y-2">
+                        {result.assassinGuesses.map((guess: any) => (
+                          <div key={guess.assassin} className="chip flex justify-between gap-3">
+                            <span>
+                              <b>{guess.assassin}</b> guessed{" "}
+                              <b>{guess.target}</b> was a King
+                            </span>
+                            <span className={guess.correct ? "text-truth" : "text-liar"}>
+                              {guess.correct ? "Correct" : "Missed"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {result.jokerResults?.length > 0 && (
+                    <section className="mt-5">
+                      <div className="eyebrow mb-3">Joker infiltrations</div>
+                      <div className="space-y-2">
+                        {result.jokerResults.map((joker: any) => (
+                          <div key={joker.name} className="chip flex justify-between gap-3">
+                            <span>
+                              <b>{joker.name}</b> targeted{" "}
+                              {kingdomTeam(joker.targetTeam)?.name || "another"}{" "}
+                              Kingdom
+                              {joker.selectedTeam &&
+                                ` and chose ${kingdomTeam(joker.selectedTeam)?.name || "a kingdom"}`}
+                            </span>
+                            <span className={joker.success ? "text-truth" : "text-liar"}>
+                              {joker.success ? "Infiltrated" : "Failed"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <div className="mt-5">
                     <div className="eyebrow mb-3">Secret roles</div>
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -879,6 +1066,11 @@ export default function Room() {
                               ]?.label
                             }
                           </span>
+                          {role.role === "king" && (
+                            <span className="block muted text-xs mt-1">
+                              Topic: {role.word}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -890,6 +1082,7 @@ export default function Room() {
                       teamScores={state.teamScores}
                       mode="individual"
                       meId={state.playerId}
+                      gained={gained}
                     />
                   </div>
                   {state.isHost ? (
@@ -1172,7 +1365,11 @@ export default function Room() {
               <div className="flex justify-between gap-3">
                 <span className="muted">Mode</span>
                 <b className="text-right">
-                  {room.mode === "teams" ? "Team vs team" : "Free-for-all"}
+                  {room.game_mode === "kingdom"
+                    ? "Secret Kingdom"
+                    : room.mode === "teams"
+                      ? "Team vs team"
+                      : "Free-for-all"}
                 </b>
               </div>
               <div className="flex justify-between gap-3">
@@ -1181,32 +1378,139 @@ export default function Room() {
                   {state.players.length}/{room.max_players}
                 </b>
               </div>
-              <div className="flex justify-between gap-3">
-                <span className="muted">Liars</span>
-                <b className="text-right">
-                  {room.imposter_count}
-                  {room.mode === "teams" ? " / team" : ""}
-                </b>
-              </div>
-              <div>
-                <div className="muted mb-1">Word topics</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {(room.word_categories || DEFAULT_WORD_CATEGORIES).map(
-                    (category: string) => (
-                      <span
-                        key={category}
-                        className="chip max-w-full break-words !px-2 !py-1 text-xs"
-                      >
-                        {wordCategoryLabel(category)}
-                      </span>
-                    ),
+              {room.game_mode === "kingdom" ? (
+                <>
+                  <div className="flex justify-between gap-3">
+                    <span className="muted">Kingdoms</span>
+                    <b>{kingdomCount}</b>
+                  </div>
+                  <div>
+                    <div className="muted mb-2">Role counts per kingdom</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {KINGDOM_TEAMS.slice(0, kingdomCount).map((kingdom) => (
+                        <span
+                          key={kingdom.id}
+                          className={`chip !px-2 !py-1 text-xs ${kingdom.text} ${kingdom.border} ${kingdom.background}`}
+                        >
+                          {kingdom.name}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="muted mt-2 text-xs">
+                      1 King · {kingdomRoleCounts.assassin} Assassin
+                      {kingdomRoleCounts.assassin === 1 ? "" : "s"} ·{" "}
+                      {kingdomRoleCounts.joker} Joker
+                      {kingdomRoleCounts.joker === 1 ? "" : "s"} · Citizens
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between gap-3">
+                    <span className="muted">Liars</span>
+                    <b className="text-right">
+                      {room.imposter_count}
+                      {room.mode === "teams" ? " / team" : ""}
+                    </b>
+                  </div>
+                  <div>
+                    <div className="muted mb-1">Word topics</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(room.word_categories || DEFAULT_WORD_CATEGORIES).map(
+                        (category: string) => (
+                          <span
+                            key={category}
+                            className="chip max-w-full break-words !px-2 !py-1 text-xs"
+                          >
+                            {wordCategoryLabel(category)}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                  {state.isHost && room.status === "lobby" && (
+                    <details className="text-sm">
+                      <summary className="cursor-pointer font-bold text-[#ff8a9b]">
+                        Edit topics
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        <p className="muted text-xs">
+                          Changes apply to upcoming rounds. Keep at least one
+                          topic selected.
+                        </p>
+                        {TOPIC_GROUPS.map(({ id: group, label }) => {
+                          const categories = WORD_CATEGORIES.filter(
+                            (category) => category.group === group,
+                          );
+                          const selectedCount = categories.filter((category) =>
+                            topicDraft.includes(category.id),
+                          ).length;
+                          const allSelected =
+                            selectedCount === categories.length;
+                          return (
+                            <section
+                              key={group}
+                              className="rounded-xl border border-[#272a40] bg-[#0b0c15] p-3"
+                            >
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <h3 className="text-xs font-bold">
+                                  {label} ({selectedCount}/{categories.length})
+                                </h3>
+                                <button
+                                  type="button"
+                                  className="text-xs text-[#ff8a9b] hover:text-white"
+                                  disabled={busy}
+                                  onClick={() => toggleTopicGroup(group)}
+                                >
+                                  {allSelected ? "Clear all" : "Select all"}
+                                </button>
+                              </div>
+                              <div className="space-y-2">
+                                {categories.map(
+                                  ({ id, label: categoryLabel }) => (
+                                    <label
+                                      key={id}
+                                      className="flex cursor-pointer items-center gap-2 text-xs"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="h-4 w-4 shrink-0 accent-[#ff3d5a]"
+                                        checked={topicDraft.includes(id)}
+                                        disabled={busy}
+                                        onChange={() => toggleTopic(id)}
+                                      />
+                                      <span>{categoryLabel}</span>
+                                    </label>
+                                  ),
+                                )}
+                              </div>
+                            </section>
+                          );
+                        })}
+                        <button
+                          className="btn-ghost w-full"
+                          disabled={
+                            busy || !topicDraft.length || !hasTopicChanges
+                          }
+                          onClick={() =>
+                            act("update-topics", {
+                              wordCategories: topicDraft,
+                            })
+                          }
+                        >
+                          {busy ? "Saving topics…" : "Save topics"}
+                        </button>
+                      </div>
+                    </details>
                   )}
+                </>
+              )}
+              {room.game_mode === "undercover" && (
+                <div className="flex justify-between gap-3">
+                  <span className="muted">Blind mode</span>
+                  <b className="text-right">{room.liars_know ? "Off" : "On"}</b>
                 </div>
-              </div>
-              <div className="flex justify-between gap-3">
-                <span className="muted">Blind mode</span>
-                <b className="text-right">{room.liars_know ? "Off" : "On"}</b>
-              </div>
+              )}
               <div className="flex justify-between gap-3">
                 <span className="muted">Phase</span>
                 <b className="text-right capitalize">{room.status}</b>

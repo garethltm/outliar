@@ -11,7 +11,15 @@ import {
   type WordCategory,
 } from "@/lib/word-categories";
 import { SecretKingdom } from "@/components/SecretKingdom";
-import { KINGDOM_IDS } from "@/lib/kingdom";
+import {
+  CONFIGURABLE_KINGDOM_ROLES,
+  DEFAULT_KINGDOM_ROLE_COUNTS,
+  KINGDOM_ROLES,
+  KINGDOM_TEAMS,
+  MAX_KINGDOM_ROLE_COUNT,
+  type ConfigurableKingdomRole,
+  type KingdomRoleCounts,
+} from "@/lib/kingdom";
 
 const CATEGORY_GROUPS = [
   { id: "everyday", label: "Everyday topics" },
@@ -25,6 +33,8 @@ export default function Home() {
     "undercover",
   );
   const [kingdomCount, setKingdomCount] = useState(2);
+  const [kingdomRoleCounts, setKingdomRoleCounts] =
+    useState<KingdomRoleCounts>(DEFAULT_KINGDOM_ROLE_COUNTS);
   const [mode, setMode] = useState<"individual" | "teams">("individual");
   const [maxPlayers, setMaxPlayers] = useState("16");
   const [liars, setLiars] = useState(1);
@@ -38,7 +48,10 @@ export default function Home() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const minPlayers =
-    gameMode === "kingdom" ? kingdomCount * 4 : minimumPlayers(mode, liars);
+    gameMode === "kingdom"
+      ? kingdomCount *
+        (2 + kingdomRoleCounts.assassin + kingdomRoleCounts.joker)
+      : minimumPlayers(mode, liars);
   const playerLimit = Number(maxPlayers);
   const validPlayerLimit =
     Number.isInteger(playerLimit) &&
@@ -67,6 +80,24 @@ export default function Home() {
         ? selected.filter((category) => !categorySet.has(category))
         : [...new Set([...selected, ...categoryIds])],
     );
+  }
+
+  function setKingdomRoleCount(
+    role: ConfigurableKingdomRole,
+    count: number,
+  ) {
+    const availableSlots = Math.max(
+      0,
+      Math.floor(30 / kingdomCount) - 2,
+    );
+    setKingdomRoleCounts((current) => ({
+      ...current,
+      [role]: Math.min(
+        count,
+        MAX_KINGDOM_ROLE_COUNT,
+        availableSlots - current[role === "assassin" ? "joker" : "assassin"],
+      ),
+    }));
   }
 
   useEffect(() => {
@@ -100,7 +131,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen px-5 py-10 flex items-center justify-center">
+    <main
+      className={`min-h-screen px-5 py-10 flex items-center justify-center ${gameMode === "kingdom" ? "kingdom-theme" : ""}`}
+    >
       <div className="w-full max-w-5xl">
         <header className="text-center mb-9">
           <LogoMark size={92} animate className="mx-auto mb-3" />
@@ -108,9 +141,15 @@ export default function Home() {
             <Wordmark className="text-6xl md:text-7xl" />
           </h1>
           <p className="muted mt-3 text-lg">
-            Blend in. Choose your allegiance.
+            {gameMode === "kingdom"
+              ? "Discover your kingdom. Guard its secret."
+              : "Blend in. Choose your allegiance."}
           </p>
-          <p className="eyebrow mt-3">The social deduction party game</p>
+          <p className="eyebrow mt-3">
+            {gameMode === "kingdom"
+              ? "Secret Kingdom · A game of hidden topics and shifting loyalties"
+              : "The social deduction party game"}
+          </p>
         </header>
 
         {notice && (
@@ -212,12 +251,97 @@ export default function Home() {
                         key={count}
                         type="button"
                         aria-pressed={kingdomCount === count}
-                        onClick={() => setKingdomCount(count)}
+                        onClick={() => {
+                          setKingdomCount(count);
+                          const availableSlots = Math.max(
+                            0,
+                            Math.floor(30 / count) - 2,
+                          );
+                          setKingdomRoleCounts((current) => {
+                            const assassin = Math.min(
+                              current.assassin,
+                              availableSlots,
+                            );
+                            return {
+                              assassin,
+                              joker: Math.min(
+                                current.joker,
+                                availableSlots - assassin,
+                              ),
+                            };
+                          });
+                        }}
                         className={`btn-ghost text-center ${kingdomCount === count ? "on" : ""}`}
                       >
                         <b>{count}</b>
                         <span className="muted block text-xs">kingdoms</span>
                       </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="grid grid-cols-2 gap-2 mb-5">
+                  {KINGDOM_TEAMS.slice(0, kingdomCount).map((kingdom) => (
+                    <div
+                      key={kingdom.id}
+                      className={`chip flex items-center gap-2 ${kingdom.border} ${kingdom.background}`}
+                    >
+                      <span className={`text-xs font-black ${kingdom.text}`}>
+                        {kingdom.name}
+                      </span>
+                      <span className="muted text-xs">Kingdom</span>
+                    </div>
+                  ))}
+                </div>
+
+                <fieldset className="mb-5">
+                  <legend className="text-sm muted">
+                    Special roles per kingdom
+                  </legend>
+                  <p className="muted text-xs mt-1">
+                    Each kingdom always has one King. Remaining players are
+                    Citizens.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {CONFIGURABLE_KINGDOM_ROLES.map((role) => (
+                      <div key={role}>
+                        <label
+                          htmlFor={`kingdom-role-${role}`}
+                          className="text-sm muted"
+                        >
+                          {KINGDOM_ROLES[role].icon} {KINGDOM_ROLES[role].label}
+                        </label>
+                        <select
+                          id={`kingdom-role-${role}`}
+                          className="field mt-2"
+                          value={kingdomRoleCounts[role]}
+                          onChange={(event) =>
+                            setKingdomRoleCount(role, Number(event.target.value))
+                          }
+                        >
+                          {Array.from(
+                            {
+                              length:
+                                Math.min(
+                                  MAX_KINGDOM_ROLE_COUNT,
+                                  Math.max(
+                                    0,
+                                    Math.floor(30 / kingdomCount) -
+                                      2 -
+                                      kingdomRoleCounts[
+                                        role === "assassin" ? "joker" : "assassin"
+                                      ],
+                                  ),
+                                ) + 1,
+                            },
+                            (_, count) => count,
+                          ).map((count) => (
+                            <option key={count} value={count}>
+                              {count}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     ))}
                   </div>
                 </fieldset>
@@ -230,7 +354,7 @@ export default function Home() {
                     id="kingdom-max"
                     type="number"
                     className="field mt-2"
-                    min={kingdomCount * 4}
+                    min={minPlayers}
                     max={30}
                     step={1}
                     inputMode="numeric"
@@ -239,14 +363,14 @@ export default function Home() {
                   />
                   {!validPlayerLimit && (
                     <p className="text-red-300 text-xs mt-1">
-                      Enter a whole number from {kingdomCount * 4} to 30.
+                      Enter a whole number from {minPlayers} to 30.
                     </p>
                   )}
                 </div>
               </>
             )}
 
-            <fieldset className="mb-5">
+            {gameMode === "undercover" && <fieldset className="mb-5">
               <legend className="text-sm muted">Choose word categories</legend>
               <p className="muted text-xs mt-1">
                 Words are drawn from all selected topics.
@@ -305,16 +429,21 @@ export default function Home() {
                   Select at least one word category.
                 </p>
               )}
-            </fieldset>
+            </fieldset>}
 
             <button
               className="btn w-full"
-              disabled={busy || !validPlayerLimit || !validWordCategories}
+              disabled={
+                busy ||
+                !validPlayerLimit ||
+                (gameMode === "undercover" && !validWordCategories)
+              }
               onClick={() =>
                 send({
                   action: "create",
                   gameMode,
                   kingdomCount,
+                  kingdomRoleCounts,
                   mode: gameMode === "kingdom" ? "teams" : mode,
                   maxPlayers: playerLimit,
                   imposters: gameMode === "kingdom" ? 1 : liars,

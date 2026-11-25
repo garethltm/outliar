@@ -11,6 +11,16 @@ import {
 import { pickPair } from "@/lib/words";
 import { minimumPlayers, startRequirement } from "@/lib/rules";
 import { DEFAULT_WORD_CATEGORIES, isWordCategory } from "@/lib/word-categories";
+import {
+  DEFAULT_KINGDOM_ROLE_COUNTS,
+  KINGDOM_IDS,
+  KINGDOM_SCORING,
+  KINGDOM_TEAMS,
+  MAX_KINGDOM_ROLE_COUNT,
+  type KingdomRole,
+  type KingdomRoleCounts,
+} from "@/lib/kingdom";
+import { pickKingdomTopics } from "@/lib/kingdom-words";
 
 export const dynamic = "force-dynamic";
 
@@ -63,13 +73,42 @@ async function addPlayer(
       room_id: room.id,
       name,
       token_hash: tokenHash,
-      team: room.mode === "teams" ? pickTeam(list as any) : null,
+      team:
+        room.game_mode !== "kingdom" && room.mode === "teams"
+          ? pickTeam(list as any)
+          : null,
     })
     .select("id,name,team")
     .single();
   if (error) throw error;
   return { player };
 }
+
+function parseKingdomRoleCounts(value: unknown): KingdomRoleCounts | null {
+  if (value === undefined) return { ...DEFAULT_KINGDOM_ROLE_COUNTS };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const input = value as Record<string, unknown>;
+  const counts = { ...DEFAULT_KINGDOM_ROLE_COUNTS };
+  for (const role of ["assassin", "joker"] as const) {
+    const count = input[role] ?? DEFAULT_KINGDOM_ROLE_COUNTS[role];
+    if (
+      typeof count !== "number" ||
+      !Number.isInteger(count) ||
+      count < 0 ||
+      count > MAX_KINGDOM_ROLE_COUNT
+    ) {
+      return null;
+    }
+    counts[role] = count;
+  }
+  return counts;
+}
+
+const kingdomMinimumPlayers = (
+  kingdomCount: number,
+  roleCounts: KingdomRoleCounts,
+) => kingdomCount * (2 + roleCounts.assassin + roleCounts.joker);
 
 /** Atomic status change: only succeeds if the room is still in the expected phase. */
 async function transition(
@@ -111,14 +150,25 @@ export async function POST(req: NextRequest) {
         gameMode === "kingdom"
           ? Math.min(4, Math.max(2, Number(data.kingdomCount) || 2))
           : 2;
+      const kingdomRoleCounts =
+        gameMode === "kingdom"
+          ? parseKingdomRoleCounts(data.kingdomRoleCounts)
+          : { ...DEFAULT_KINGDOM_ROLE_COUNTS };
+      if (!kingdomRoleCounts)
+        return fail("Choose a valid count for each Secret Kingdom role.");
       const maxPlayers = Number(data.maxPlayers);
-      const minimumForMode = gameMode === "kingdom" ? kingdomCount * 4 : 3;
+      const minimumForMode =
+        gameMode === "kingdom"
+          ? kingdomMinimumPlayers(kingdomCount, kingdomRoleCounts)
+          : 3;
       if (
         !Number.isInteger(maxPlayers) ||
         maxPlayers < minimumForMode ||
         maxPlayers > 30
       ) {
-        return fail("Player limit must be a whole number between 3 and 30.");
+        return fail(
+          `Player limit must be a whole number between ${minimumForMode} and 30.`,
+        );
       }
       const imposters = Math.min(3, Math.max(1, Number(data.imposters) || 1));
       const minPlayers = minimumPlayers(mode, imposters);
@@ -139,7 +189,8 @@ export async function POST(req: NextRequest) {
         return fail("Select at least one valid word category.");
       }
       const wordCategories = [...new Set(requestedCategories)];
-      const liarsKnow = data.liarsKnow !== false;
+      const liarsKnow =
+        gameMode === "kingdom" || data.liarsKnow !== false;
       const hostToken = newToken();
       let room: any = null;
       for (let attempt = 0; attempt < 6 && !room; attempt++) {
@@ -149,6 +200,7 @@ export async function POST(req: NextRequest) {
             code: newCode(),
             game_mode: gameMode,
             kingdom_count: kingdomCount,
+            kingdom_role_counts: kingdomRoleCounts,
             mode,
             max_players: maxPlayers,
             imposter_count: imposters,
@@ -160,7 +212,7 @@ export async function POST(req: NextRequest) {
             phase_started_at: nowIso(),
           })
           .select(
-            "id,code,game_mode,kingdom_count,mode,max_players,imposter_count,word_categories,status,round",
+            "id,code,game_mode,kingdom_count,kingdom_role_counts,mode,max_players,imposter_count,word_categories,status,round",
           )
           .single();
         if (error && (error as any).code === "23505") continue; // room code collision — try another
@@ -235,7 +287,11 @@ export async function POST(req: NextRequest) {
     if (action === "state") {
       const { data: players } = await db
         .from("players")
-        .select("id,name,team,kingdom_choice,joined_at")
+        .select(
+          room.game_mode === "kingdom" && room.status === "voting"
+            ? "id,name,team,joined_at"
+            : "id,name,team,kingdom_choice,joined_at",
+        )
         .eq("room_id", room.id)
         .order("joined_at");
       const roster = players || [];
@@ -244,14 +300,19 @@ export async function POST(req: NextRequest) {
       if (player && room.status !== "lobby") {
         const { data: a } = await db
           .from("assignments")
-          .select("word,is_imposter,role,kingdom_team,hint")
+          .select("word,is_imposter,role,kingdom_team,hint,target_team")
           .eq("room_id", room.id)
           .eq("player_id", player.id)
           .eq("round", room.round)
           .maybeSingle();
         assignment = a;
         // "Blind liars" mode: nobody (liars included) learns their role until the reveal.
-        if (a && room.liars_know === false && room.status !== "revealed")
+        if (
+          a &&
+          room.game_mode !== "kingdom" &&
+          room.liars_know === false &&
+          room.status !== "revealed"
+        )
           assignment = { word: a.word, is_imposter: null };
       }
 
@@ -268,6 +329,14 @@ export async function POST(req: NextRequest) {
           ? ((votes || []).find((v: any) => v.voter_id === player.id)
               ?.target_id ?? null)
           : null;
+        if (room.game_mode === "kingdom") {
+          votedIds = [];
+          myVote =
+            player && assignment?.role === "assassin"
+              ? ((votes || []).find((v: any) => v.voter_id === player.id)
+                  ?.target_id ?? null)
+              : null;
+        }
       }
 
       let result = null;
@@ -347,17 +416,21 @@ export async function POST(req: NextRequest) {
           code: room.code,
           game_mode: room.game_mode || "undercover",
           kingdom_count: room.kingdom_count || 2,
+          kingdom_role_counts:
+            room.kingdom_role_counts || DEFAULT_KINGDOM_ROLE_COUNTS,
           mode: room.mode,
           max_players: room.max_players,
           imposter_count: room.imposter_count,
           word_categories: room.word_categories || DEFAULT_WORD_CATEGORIES,
           status: room.status,
           round: room.round,
-          liars_know: room.liars_know !== false,
+          liars_know:
+            room.game_mode === "kingdom" || room.liars_know !== false,
         },
         players: roster,
         assignment,
         playerId: player?.id || null,
+        myKingdomChoice: player?.kingdom_choice ?? null,
         isHost,
         myVote,
         votedIds,
@@ -428,6 +501,31 @@ export async function POST(req: NextRequest) {
 
     // ───────────────────────── host-only ─────────────────────────
     if (!isHost) return fail("Only the host can perform this action.", 403);
+
+    if (action === "update-topics") {
+      if (room.status !== "lobby")
+        return fail("Topics can only be changed in the lobby or between rounds.");
+      if (
+        !Array.isArray(data.wordCategories) ||
+        data.wordCategories.length === 0 ||
+        !data.wordCategories.every(isWordCategory)
+      ) {
+        return fail("Select at least one valid word topic.");
+      }
+
+      const wordCategories = [...new Set(data.wordCategories)];
+      const { data: updated, error: updateError } = await db
+        .from("rooms")
+        .update({ word_categories: wordCategories })
+        .eq("id", room.id)
+        .eq("status", "lobby")
+        .select("id")
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updated)
+        return fail("The round started before topics were saved. Try again.");
+      return NextResponse.json({ ok: true });
+    }
 
     if (action === "judge-guess") {
       if (room.status !== "revealed")
@@ -518,30 +616,49 @@ export async function POST(req: NextRequest) {
         .select("id,team")
         .eq("room_id", room.id);
       const list = players || [];
+      const kingdomRoleCounts = parseKingdomRoleCounts(
+        room.kingdom_role_counts,
+      );
+      if (!kingdomRoleCounts)
+        return fail("This room has invalid Kingdom role settings.", 500);
       const problem =
         room.game_mode === "kingdom"
-          ? list.length < (room.kingdom_count || 2) * 4
-            ? `Secret Kingdom needs ${(room.kingdom_count || 2) * 4} players for ${room.kingdom_count || 2} kingdoms (4 players per kingdom).`
+          ? list.length <
+            kingdomMinimumPlayers(room.kingdom_count || 2, kingdomRoleCounts)
+            ? `Secret Kingdom needs at least ${kingdomMinimumPlayers(room.kingdom_count || 2, kingdomRoleCounts)} players for ${room.kingdom_count || 2} kingdoms with these role counts.`
             : null
           : startRequirement(room.mode, room.imposter_count, list as any);
       if (problem) return fail(problem);
 
-      // Avoid repeating words within the same room.
       const used = new Set<string>();
-      const { data: past } = await db
-        .from("round_results")
-        .select("result")
-        .eq("room_id", room.id);
-      (past || []).forEach((r: any) => {
-        if (r.result?.civilianWord) used.add(r.result.civilianWord);
-        if (r.result?.liarWord) used.add(r.result.liarWord);
-      });
-      if (room.word_a) used.add(room.word_a);
-      if (room.word_b) used.add(room.word_b);
-      const pair = pickPair(
-        room.word_categories || DEFAULT_WORD_CATEGORIES,
-        used,
-      );
+      const usedTopics = new Set<string>();
+      if (room.game_mode === "kingdom") {
+        const { data: pastAssignments, error: historyError } = await db
+          .from("assignments")
+          .select("word,role")
+          .eq("room_id", room.id);
+        if (historyError) throw historyError;
+        (pastAssignments || []).forEach((assignment: any) => {
+          if (assignment.role === "king") usedTopics.add(assignment.word);
+          else if (assignment.word) used.add(assignment.word);
+        });
+      } else {
+        const { data: past, error: historyError } = await db
+          .from("round_results")
+          .select("result")
+          .eq("room_id", room.id);
+        if (historyError) throw historyError;
+        (past || []).forEach((r: any) => {
+          if (r.result?.civilianWord) used.add(r.result.civilianWord);
+          if (r.result?.liarWord) used.add(r.result.liarWord);
+        });
+        if (room.word_a) used.add(room.word_a);
+        if (room.word_b) used.add(room.word_b);
+      }
+      const pair =
+        room.game_mode === "undercover"
+          ? pickPair(room.word_categories || DEFAULT_WORD_CATEGORIES, used)
+          : null;
 
       const round = room.round + 1;
       const shuffled = shuffle(list);
@@ -561,8 +678,8 @@ export async function POST(req: NextRequest) {
       // Claim the phase first so a double-tap on "Start" can't create two rounds.
       const claimed = await transition(db, room, "lobby", "clues", {
         round,
-        word_a: pair.civilian,
-        word_b: pair.liar,
+        word_a: pair?.civilian || null,
+        word_b: pair?.liar || null,
       });
       if (!claimed) return fail("A round is already in progress.");
 
@@ -577,54 +694,68 @@ export async function POST(req: NextRequest) {
       if (room.game_mode === "kingdom") {
         const kingdomOrder = shuffle(list);
         const kingdomCount = room.kingdom_count || 2;
-        const kingdomIds = ["A", "B", "C", "D"].slice(0, kingdomCount);
+        const kingdomIds = KINGDOM_IDS.slice(0, kingdomCount);
         const teams: Record<string, any[]> = {};
-        const pairByTeam: Record<string, any> = {};
+        const topicsByTeam: Record<
+          string,
+          ReturnType<typeof pickKingdomTopics>[number]
+        > = {};
+        const selectedTopics = pickKingdomTopics(
+          kingdomCount,
+          usedTopics,
+          used,
+        );
         kingdomIds.forEach((id, index) => {
           teams[id] = kingdomOrder.filter(
             (_: any, i: number) => i % kingdomCount === index,
           );
-          pairByTeam[id] = pickPair(
-            room.word_categories || DEFAULT_WORD_CATEGORIES,
-            used,
-          );
-          used.add(pairByTeam[id].civilian);
-          used.add(pairByTeam[id].liar);
+          topicsByTeam[id] = selectedTopics[index];
         });
-        rows = list.map((p: any) => {
-          const team =
-            kingdomIds.find((id) =>
-              teams[id].some((x: any) => x.id === p.id),
-            ) || "A";
-          const teammates = teams[team];
-          const position = teammates.findIndex((x: any) => x.id === p.id);
-          const role =
-            position === 0
-              ? "king"
-              : position === 1
-                ? "assassin"
-                : position === 2
-                  ? "joker"
-                  : "citizen";
-          const opposingTeams = kingdomIds.filter((id) => id !== team);
-          const opposingTeam = opposingTeams[0];
-          return {
-            room_id: room.id,
-            player_id: p.id,
-            round,
-            word: role === "joker" ? "" : pairByTeam[team].civilian,
-            is_imposter: false,
-            role,
-            kingdom_team: team,
-            hint: role === "joker" ? pairByTeam[opposingTeam].category : null,
-          };
+        rows = kingdomIds.flatMap((team) => {
+          const kingdomPlayers = shuffle(teams[team]);
+          const topic = topicsByTeam[team];
+          const roleByPlayer = new Map<string, KingdomRole>();
+          let index = 0;
+          roleByPlayer.set(kingdomPlayers[index++].id, "king");
+          for (let count = 0; count < kingdomRoleCounts.assassin; count++)
+            roleByPlayer.set(kingdomPlayers[index++].id, "assassin");
+          for (let count = 0; count < kingdomRoleCounts.joker; count++)
+            roleByPlayer.set(kingdomPlayers[index++].id, "joker");
+
+          return kingdomPlayers.map((player: any) => {
+            const role = roleByPlayer.get(player.id) || "citizen";
+            const opposingTeams = kingdomIds.filter((id) => id !== team);
+            const targetTeam =
+              role === "joker"
+                ? shuffle(opposingTeams)[0]
+                : null;
+            const targetTopic = targetTeam
+              ? topicsByTeam[targetTeam]
+              : null;
+            return {
+              room_id: room.id,
+              player_id: player.id,
+              round,
+              word:
+                role === "king"
+                  ? topic.topic.title
+                  : role === "joker"
+                    ? ""
+                    : topic.word,
+              is_imposter: false,
+              role,
+              kingdom_team: team,
+              target_team: targetTeam,
+              hint: role === "joker" ? targetTopic?.topic.hint : null,
+            };
+          });
         });
       } else {
         rows = list.map((p: any) => ({
           room_id: room.id,
           player_id: p.id,
           round,
-          word: liars.has(p.id) ? pair.liar : pair.civilian,
+          word: liars.has(p.id) ? pair!.liar : pair!.civilian,
           is_imposter: liars.has(p.id),
         }));
       }
@@ -653,22 +784,164 @@ export async function POST(req: NextRequest) {
     if (action === "reveal") {
       if (room.status !== "voting")
         return fail("Results can only be revealed during voting.");
-      const { data: assignments } = await db
+      const { data: assignments, error: assignmentError } = await db
         .from("assignments")
-        .select("player_id,is_imposter,role,kingdom_team")
+        .select(
+          "player_id,word,is_imposter,role,kingdom_team,hint,target_team",
+        )
         .eq("room_id", room.id)
         .eq("round", room.round);
-      const { data: votes } = await db
+      if (assignmentError) throw assignmentError;
+      const { data: votes, error: voteError } = await db
         .from("votes")
         .select("voter_id,target_id")
         .eq("room_id", room.id)
         .eq("round", room.round);
-      const { data: people } = await db
+      if (voteError) throw voteError;
+      const { data: people, error: playerError } = await db
         .from("players")
-        .select("id,name,team")
+        .select("id,name,team,kingdom_choice")
         .eq("room_id", room.id);
+      if (playerError) throw playerError;
       const ppl = people || [];
       const vs = votes || [];
+
+      if (room.game_mode === "kingdom") {
+        const roleByPlayer = new Map(
+          (assignments || []).map((assignment: any) => [
+            assignment.player_id,
+            assignment,
+          ]),
+        );
+        const playerById = new Map(ppl.map((person: any) => [person.id, person]));
+        const guessByAssassin = new Map(
+          vs.map((vote: any) => [vote.voter_id, vote.target_id]),
+        );
+        const kingdoms = KINGDOM_IDS.slice(0, room.kingdom_count || 2).map(
+          (team) => {
+            const teamAssignments = (assignments || []).filter(
+              (assignment: any) => assignment.kingdom_team === team,
+            );
+            const kingAssignment = teamAssignments.find(
+              (assignment: any) => assignment.role === "king",
+            );
+            const king = kingAssignment
+              ? playerById.get(kingAssignment.player_id)
+              : null;
+            return {
+              team,
+              name: KINGDOM_TEAMS.find((kingdom) => kingdom.id === team)?.name,
+              topic: kingAssignment?.word || null,
+              word:
+                teamAssignments.find(
+                  (assignment: any) =>
+                    assignment.role === "citizen" ||
+                    assignment.role === "assassin",
+                )?.word || null,
+              king: king?.name || null,
+              members: teamAssignments
+                .map((assignment: any) =>
+                  playerById.get(assignment.player_id),
+                )
+                .filter(Boolean)
+                .map((person: any) => person.name),
+              chosenBy: ppl
+                .filter((person: any) => person.kingdom_choice === team)
+                .map((person: any) => person.name),
+            };
+          },
+        );
+        const assassinGuesses = vs
+          .filter(
+            (vote: any) =>
+              roleByPlayer.get(vote.voter_id)?.role === "assassin",
+          )
+          .map((vote: any) => {
+            const assassin = roleByPlayer.get(vote.voter_id);
+            const target = roleByPlayer.get(vote.target_id);
+            return {
+              assassin: playerById.get(vote.voter_id)?.name || "Assassin",
+              target: playerById.get(vote.target_id)?.name || "Unknown",
+              correct:
+                target?.role === "king" &&
+                target.kingdom_team !== assassin?.kingdom_team,
+            };
+          });
+        const jokerResults = (assignments || [])
+          .filter((assignment: any) => assignment.role === "joker")
+          .map((assignment: any) => ({
+            name:
+              playerById.get(assignment.player_id)?.name || "Joker",
+            team: assignment.kingdom_team,
+            targetTeam: assignment.target_team,
+            selectedTeam:
+              playerById.get(assignment.player_id)?.kingdom_choice || null,
+            success:
+              playerById.get(assignment.player_id)?.kingdom_choice ===
+              assignment.target_team,
+          }));
+        const points = ppl.map((person: any) => {
+          const assignment = roleByPlayer.get(person.id);
+          let score = 0;
+          const notes: string[] = [];
+          if (assignment?.role === "joker") {
+            if (person.kingdom_choice === assignment.target_team) {
+              score += KINGDOM_SCORING.jokerInfiltrates;
+              notes.push("Infiltrated the target kingdom");
+            }
+          } else if (person.kingdom_choice === assignment?.kingdom_team) {
+            score += KINGDOM_SCORING.correctKingdomChoice;
+            notes.push("Found the right kingdom");
+          }
+          const guessedKing = guessByAssassin.get(person.id);
+          if (assignment?.role === "assassin" && guessedKing) {
+            const target = roleByPlayer.get(guessedKing);
+            if (
+              target?.role === "king" &&
+              target.kingdom_team !== assignment.kingdom_team
+            ) {
+              score += KINGDOM_SCORING.assassinFindsKing;
+              notes.push("Found the opposing King");
+            }
+          }
+          return {
+            id: person.id,
+            name: person.name,
+            team: null,
+            role: assignment?.role || "citizen",
+            points: score,
+            note: notes.join(" · "),
+          };
+        });
+        const result = {
+          gameMode: "kingdom",
+          kingdoms,
+          roles: (assignments || []).map((assignment: any) => ({
+            playerId: assignment.player_id,
+            name:
+              playerById.get(assignment.player_id)?.name || "Player",
+            team: assignment.kingdom_team,
+            role: assignment.role,
+            word: assignment.word,
+            hint: assignment.hint,
+            targetTeam: assignment.target_team,
+          })),
+          assassinGuesses,
+          jokerResults,
+          points,
+        };
+        const { error: resultError } = await db
+          .from("round_results")
+          .upsert(
+            { room_id: room.id, round: room.round, result },
+            { onConflict: "room_id,round" },
+          );
+        if (resultError) throw resultError;
+        if (!(await transition(db, room, "voting", "revealed")))
+          return fail("The round changed before the results could be revealed.");
+        return NextResponse.json({ ok: true });
+      }
+
       const liarIds = new Set(
         (assignments || [])
           .filter((a: any) => a.is_imposter)
@@ -786,11 +1059,16 @@ export async function POST(req: NextRequest) {
       const validTeams = ["A", "B", "C", "D"].slice(0, kingdomCount);
       const choice = validTeams.includes(data.team) ? data.team : null;
       if (!choice) return fail("Choose a kingdom shown on your screen.");
-      await db
+      const { data: updated, error: choiceError } = await db
         .from("players")
         .update({ kingdom_choice: choice })
         .eq("id", player.id)
-        .eq("room_id", room.id);
+        .eq("room_id", room.id)
+        .is("kingdom_choice", null)
+        .select("id")
+        .maybeSingle();
+      if (choiceError) throw choiceError;
+      if (!updated) return fail("Your kingdom choice is already locked.");
       return NextResponse.json({ ok: true });
     }
 
@@ -823,29 +1101,35 @@ export async function POST(req: NextRequest) {
 
       const { data: targetAssignment } = await db
         .from("assignments")
-        .select("kingdom_team")
+        .select("player_id")
         .eq("room_id", room.id)
         .eq("player_id", targetId)
         .eq("round", room.round)
         .maybeSingle();
-      if (
-        !targetAssignment ||
-        targetAssignment.kingdom_team === assassinAssignment.kingdom_team
-      ) {
-        return fail(
-          "An Assassin must identify a player from the opposing kingdom.",
-        );
-      }
+      if (!targetAssignment || targetId === player.id)
+        return fail("Choose another player to make your Assassin guess.");
 
-      await db.from("votes").upsert(
-        {
-          room_id: room.id,
-          round: room.round,
-          voter_id: player.id,
-          target_id: targetId,
-        },
-        { onConflict: "room_id,round,voter_id" },
-      );
+      const { data: existingGuess, error: guessReadError } = await db
+        .from("votes")
+        .select("id")
+        .eq("room_id", room.id)
+        .eq("round", room.round)
+        .eq("voter_id", player.id)
+        .maybeSingle();
+      if (guessReadError) throw guessReadError;
+      if (existingGuess)
+        return fail("Your Assassin guess is already locked.");
+      const { error: guessError } = await db.from("votes").insert({
+        room_id: room.id,
+        round: room.round,
+        voter_id: player.id,
+        target_id: targetId,
+      });
+      if (guessError) {
+        if ((guessError as any).code === "23505")
+          return fail("Your Assassin guess is already locked.");
+        throw guessError;
+      }
       return NextResponse.json({ ok: true });
     }
 

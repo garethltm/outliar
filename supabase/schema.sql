@@ -6,6 +6,9 @@ create table if not exists public.rooms (
  id uuid primary key default gen_random_uuid(), code text unique not null,
  game_mode text not null default 'undercover' check (game_mode in ('undercover','kingdom')),
  kingdom_count int not null default 2 check (kingdom_count between 2 and 4),
+ kingdom_role_counts jsonb not null default '{"assassin":1,"joker":1}'::jsonb
+   constraint rooms_kingdom_role_counts_object_check
+   check (jsonb_typeof(kingdom_role_counts) = 'object'),
  mode text not null check (mode in ('individual','teams')),
  max_players int not null default 16 check (max_players between 3 and 30),
  imposter_count int not null default 1 check (imposter_count between 1 and 3),
@@ -26,8 +29,9 @@ create table if not exists public.players (
 create table if not exists public.assignments (
  id uuid primary key default gen_random_uuid(), room_id uuid not null references public.rooms(id) on delete cascade,
  player_id uuid not null references public.players(id) on delete cascade, round int not null,
- word text not null, is_imposter boolean not null, role text check (role in ('king','assassin','joker','citizen')),
- kingdom_team text check (kingdom_team in ('A','B','C','D')), hint text,
+ word text not null, is_imposter boolean not null, role text,
+ kingdom_team text check (kingdom_team in ('A','B','C','D')),
+ target_team text check (target_team is null or target_team in ('A','B','C','D')), hint text,
  unique(room_id,player_id,round)
 );
 create table if not exists public.votes (
